@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 11.4 (GitHub Pages + High-Density UI Edition)
+  Version: 11.5 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: SafariのDOM再利用バグ(他要素消失)完全修正・SortableJS安定化
+  Description: ID重複バグの完全修正、計算ロジック統一、編集中ハイライト追加、安定性最優先
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 11.4</title>
+    <title>Smart TimeTable - Ver 11.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -51,17 +51,6 @@
         .bg-sub-sp { background-color: #fee2e2; color: #be123c; border-color: #fecaca; }
         .bg-sub-default { background-color: #f1f5f9; color: #475569; border-color: #e2e8f0; }
         #toast { transition: opacity 0.3s, transform 0.3s; z-index: 9999; }
-        
-        /* アニメーション用クラス */
-        @keyframes highlightNew { 0% { box-shadow: 0 0 0 4px #60a5fa; background-color: #eff6ff; } 100% { background-color: #f8fafc; } }
-        .new-item { animation: highlightNew 1.5s ease-out forwards; }
-        
-        /* 削除時の安全なアニメーション */
-        @keyframes shrinkOut {
-            0% { opacity: 1; max-height: 500px; padding: 0.5rem; margin-bottom: 0.5rem; border-width: 1px; }
-            100% { opacity: 0; max-height: 0; padding: 0; margin-bottom: 0; border-width: 0; overflow: hidden; transform: scale(0.95) translateX(20px); }
-        }
-        .removing-item { animation: shrinkOut 0.3s ease forwards !important; }
         
         .sortable-ghost { opacity: 0.2; background: #3b82f6 !important; }
         .sortable-drag { opacity: 0.9 !important; background: #ffffff !important; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1) !important; z-index: 100 !important; cursor: grabbing !important; }
@@ -124,7 +113,8 @@
         ],
         globalBlocks: {}, teachers: [], mathGroups: [],
         advancedRules: { limitContinuousToSpecificPeriods: true, limitOneSubjectPerDay: true, continuousClasses: [], homeroomOnlyTimes: [], amPrioritySubjects: [], consecutiveGradeSubjects: [], avoidPeTimes: [], avoidSpecialistTimes: [], lastPeriodSubjects: [], maxIntervalSubjects: [] },
-        selectedTeacherId: null, selectedRoomId: null, generatedSchedule: null, dashboardView: "class", dashboardFilter: "1-1", selectedDashCell: null, undoStack: [], conflicts: []
+        selectedTeacherId: null, selectedRoomId: null, generatedSchedule: null, dashboardView: "class", dashboardFilter: "1-1", selectedDashCell: null, undoStack: [], conflicts: [],
+        editingAssignmentId: null // 編集中ハイライト用
     };
 
     let lastTouchEnd = 0;
@@ -138,22 +128,23 @@
     }, { passive: false });
 
     function showToast(msg) { const t = document.getElementById('toast'); document.getElementById('toast-msg').innerText = msg; t.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 2500); }
-    function save() { try { localStorage.setItem('tt_v114_data', JSON.stringify(state)); } catch(e) {} }
+    function save() { try { localStorage.setItem('tt_v115_data', JSON.stringify(state)); } catch(e) {} }
     
     function load() {
         try {
-            const s = localStorage.getItem('tt_v114_data') || localStorage.getItem('tt_v113_data') || localStorage.getItem('tt_v112_data') || localStorage.getItem('tt_v111_data') || localStorage.getItem('tt_v109_data');
+            // 古いバージョンのデータも読み込み可能にする
+            const s = localStorage.getItem('tt_v115_data') || localStorage.getItem('tt_v114_data') || localStorage.getItem('tt_v113_data') || localStorage.getItem('tt_v112_data') || localStorage.getItem('tt_v111_data') || localStorage.getItem('tt_v109_data');
             if(s) { 
                 const p = JSON.parse(s); 
                 if(p.subjects) { state.subjects.forEach(d => { if(!p.subjects.find(x => x.name === d.name)) p.subjects.push(d); }); } 
                 
-                // バグ修正：古いデータのID修復＆isNewフラグのゴミ除去
+                // ★手術1：データの癒着（ID重複バグ）を完全に破壊し、すべてに絶対唯一のIDを割り当てる
                 if(p.teachers) {
-                    p.teachers.forEach(t => {
+                    p.teachers.forEach((t, tIdx) => {
                         if(t.assignments) {
-                            t.assignments.forEach(a => { 
-                                if(!a.id) a.id = Date.now() + Math.random(); 
-                                a.isNew = false; // ゴミデータを確実にクリア
+                            t.assignments.forEach((a, aIdx) => { 
+                                // ランダム値とインデックスを組み合わせて絶対重複しない文字列にする
+                                a.id = `assign_${tIdx}_${aIdx}_${Date.now()}_${Math.floor(Math.random() * 10000)}`; 
                             });
                         }
                     });
@@ -161,6 +152,23 @@
                 Object.assign(state, p); return true; 
             }
         } catch(e) {} return false;
+    }
+
+    // ★手術2：持ち時数計算ロジックの完全統一関数
+    function calculateTeacherLoad(teacher) {
+        if(!teacher || !teacher.assignments) return 0;
+        return teacher.assignments.reduce((sum, a) => {
+            if(a.isTT) return sum; // 副担当は0コマ扱い
+            let multiplier = 1;
+            if(a.target.includes('年全体')) {
+                const g = a.target.charAt(0);
+                multiplier = state.grades[g] || 1;
+            } else if (a.target !== '自分のクラス') {
+                // 複数クラス（カンマ区切り）の場合はその数だけ掛け算
+                multiplier = a.target.split(',').length;
+            }
+            return sum + (a.hours * multiplier);
+        }, 0);
     }
 
     function getGridHtml(ngMap, globalBlocksMap, actionStr, cellType = 'teacher') {
@@ -203,6 +211,7 @@
     function render() {
         try {
             save();
+            // スクロール位置の確実な保存
             const scrollEls = document.querySelectorAll('[id$="-scroll"], [id$="-scroll-left"], [id$="-scroll-right"], #assignment-list');
             const scrollMap = {}; scrollEls.forEach(el => scrollMap[el.id] = { top: el.scrollTop, left: el.scrollLeft });
 
@@ -226,16 +235,19 @@
             document.getElementById('btn-prev').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
             
             setTimeout(() => {
+                // スクロール位置の復元
                 Object.keys(scrollMap).forEach(id => { const el = document.getElementById(id); if(el) { el.scrollTop = scrollMap[id].top; el.scrollLeft = scrollMap[id].left; } });
                 
-                // SortableJSのクリーンな再初期化（メモリリーク・バグ防止）
+                // SortableJSの初期化（バグ防止のため毎回作り直す）
                 const listEl = document.getElementById('assignment-list');
                 if (listEl) {
                     if (window.currentSortable) window.currentSortable.destroy();
                     window.currentSortable = Sortable.create(listEl, { 
                         animation: 150, delay: 250, delayOnTouchOnly: true, ghostClass: 'sortable-ghost',
                         scroll: true, forceFallback: true, fallbackTolerance: 3,
-                        onEnd: (evt) => actions.reorderAssignment(state.selectedTeacherId, evt.oldIndex, evt.newIndex) 
+                        onEnd: (evt) => {
+                            actions.reorderAssignment(state.selectedTeacherId, evt.oldIndex, evt.newIndex);
+                        }
                     });
                 }
             }, 0);
@@ -286,10 +298,10 @@
         state.teachers.forEach(x => { if(x.id !== state.selectedTeacherId) copyOpts += `<option value="${x.id}">${x.name}</option>`; });
 
         let leftHtml = state.teachers.map(x => {
-            const cur = x.assignments?.reduce((s,a)=>s+(a.isTT?0:(a.target.includes('年全体')?a.hours*state.grades[a.target.charAt(0)]:(a.target==='自分のクラス'?a.hours:a.target.split(',').length*a.hours))),0)||0;
+            const cur = calculateTeacherLoad(x);
             const isSel = t?.id === x.id;
             return `
-            <div onclick="state.selectedTeacherId=${x.id};render()" class="p-2 rounded-lg cursor-pointer text-xs border ${isSel?'bg-blue-600 text-white':'text-slate-600 border-slate-100 hover:bg-slate-50'} flex justify-between shrink-0">
+            <div onclick="state.selectedTeacherId='${x.id}';render()" class="p-2 rounded-lg cursor-pointer text-xs border ${isSel?'bg-blue-600 text-white':'text-slate-600 border-slate-100 hover:bg-slate-50'} flex justify-between shrink-0">
                 <span class="truncate min-w-0 flex-1">${x.name}</span>
                 <span id="left-load-${x.id}" class="text-[9px] px-1.5 py-0.5 rounded shrink-0 ${cur>x.maxHours?'text-rose-500 font-black bg-rose-100':(isSel?'text-blue-200 bg-black/10':'text-slate-400 bg-black/10')}">${cur}/${x.maxHours}</span>
             </div>`;
@@ -299,51 +311,54 @@
         if(t) {
             let asListHtml = `<div class="text-center py-6 text-slate-300 text-[10px] font-bold">授業なし</div>`;
             if(t.assignments && t.assignments.length > 0) {
-                asListHtml = t.assignments.map((as, aIdx) => `
-                    <div id="as-item-${as.id}" class="p-2 border rounded-xl bg-slate-50 flex flex-wrap gap-1.5 relative group shrink-0 ${as.isNew?'new-item':''}">
-                        <button onclick="actions.removeAssignmentWithAnim(${t.id},${as.id},'as-item-${as.id}')" title="この授業を削除" class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 text-[10px] z-10 transition-all">✕</button>
+                asListHtml = t.assignments.map((as, aIdx) => {
+                    const isEditing = state.editingAssignmentId === as.id;
+                    const frameClass = isEditing ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' : 'bg-slate-50 border-slate-200';
+                    return `
+                    <div id="as-item-${as.id}" onclick="actions.setEditing('${as.id}')" class="p-2 md:p-3 border rounded-xl flex flex-wrap gap-1.5 md:gap-2 relative group shrink-0 transition-all cursor-pointer ${frameClass}">
+                        <button onclick="event.stopPropagation(); actions.removeAssignment('${t.id}','${as.id}')" title="この授業を削除" class="absolute -top-1.5 -right-1.5 w-6 h-6 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-300 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 text-[10px] z-10 transition-all font-bold">✕</button>
                         
-                        <select title="科目を選択" onchange="actions.updateAssignment(${t.id},${as.id},'subject',this.value,true)" class="m3-input !p-1 !text-xs flex-1 min-w-[60px]">
+                        <select title="科目を選択" onchange="actions.updateAssignment('${t.id}','${as.id}','subject',this.value)" class="m3-input !p-1.5 !text-xs flex-1 min-w-[70px]">
                             ${state.subjects.map(s=>`<option value="${s.name}" ${s.name===as.subject?'selected':''}>${s.name}</option>`).join('')}
                         </select>
                         
-                        <div class="flex items-center gap-1 flex-[1.5] min-w-[130px]" title="対象クラスを選択">
-                            <select id="target-select-${as.id}" onchange="if(this.value==='custom') actions.openCustomTargetModal(${t.id},${as.id}); else actions.updateAssignment(${t.id},${as.id},'target',this.value,true)" class="m3-input !p-1 !text-xs w-full">
+                        <div class="flex items-center gap-1 flex-[1.5] min-w-[140px]" title="対象クラスを選択">
+                            <select id="target-select-${as.id}" onchange="if(this.value==='custom') actions.openCustomTargetModal('${t.id}','${as.id}'); else actions.updateAssignment('${t.id}','${as.id}','target',this.value)" class="m3-input !p-1.5 !text-xs w-full">
                                 ${actions.getTargetOptions(as.target)}
                             </select>
-                            <button onclick="actions.openCustomTargetModal(${t.id},${as.id})" class="text-[9px] font-bold bg-blue-50 border border-blue-200 text-blue-700 px-2 py-1 rounded hover:bg-blue-100 shadow-sm shrink-0 whitespace-nowrap" title="複数クラス選択">+複数</button>
+                            <button onclick="actions.openCustomTargetModal('${t.id}','${as.id}')" class="text-[9px] font-bold bg-white border border-blue-200 text-blue-700 px-2 py-1.5 rounded-lg hover:bg-blue-50 shadow-sm shrink-0 whitespace-nowrap transition-colors" title="複数クラス選択">+複数</button>
                         </div>
                         
-                        <div class="flex items-center bg-white border border-slate-200 rounded px-1 py-0.5 shrink-0" title="週コマ数">
-                            <input type="number" value="${as.hours}" min="1" onchange="actions.updateAssignment(${t.id},${as.id},'hours',parseInt(this.value)||1,true)" class="w-8 p-0.5 text-center font-black text-blue-600 outline-none text-sm">
-                            <span class="text-[8px] font-bold text-slate-400">コマ</span>
+                        <div class="flex items-center bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shrink-0 shadow-sm" title="週コマ数">
+                            <input type="number" value="${as.hours}" min="1" onchange="actions.updateAssignment('${t.id}','${as.id}','hours',parseInt(this.value)||1)" class="w-10 p-1 text-center font-black text-blue-600 outline-none text-sm bg-transparent">
+                            <span class="text-[9px] font-bold text-slate-400 pr-1">コマ</span>
                         </div>
                         
-                        <div class="flex items-center gap-2 bg-white border border-slate-200 rounded px-2 py-1 shrink-0">
+                        <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shrink-0 shadow-sm">
                             <label class="flex items-center gap-1 cursor-pointer" title="合同授業">
-                                <input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${t.id},${as.id},'isJoint',this.checked,true)" class="w-3 h-3 text-blue-600">
-                                <span class="text-[9px] font-bold text-slate-600">合同</span>
+                                <input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment('${t.id}','${as.id}','isJoint',this.checked)" class="w-3.5 h-3.5 text-blue-600 rounded">
+                                <span class="text-[10px] font-bold text-slate-600">合同</span>
                             </label>
-                            <label class="flex items-center gap-1 cursor-pointer border-l border-slate-200 pl-2" title="副担当(TT)">
-                                <input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${t.id},${as.id},'isTT',this.checked,true)" class="w-3 h-3 text-blue-600">
-                                <span class="text-[9px] font-bold text-slate-600">副担当(TT)</span>
+                            <label class="flex items-center gap-1 cursor-pointer border-l border-slate-200 pl-2.5" title="副担当(TT)">
+                                <input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment('${t.id}','${as.id}','isTT',this.checked)" class="w-3.5 h-3.5 text-blue-600 rounded">
+                                <span class="text-[10px] font-bold text-slate-600">副担当(TT)</span>
                             </label>
                         </div>
                         
-                        <div class="w-full h-0 border-t-4 border-dashed border-slate-200 my-1 hidden lg:block"></div>
+                        <div class="w-full h-0 border-t-2 border-dashed border-slate-200 my-1 hidden lg:block opacity-50"></div>
                         
-                        <select title="教室を選択" onchange="actions.updateAssignment(${t.id},${as.id},'room',this.value,true)" class="m3-input !p-1 !text-[10px] flex-1 min-w-[70px]">
+                        <select title="教室を選択" onchange="actions.updateAssignment('${t.id}','${as.id}','room',this.value)" class="m3-input !p-1.5 !text-[10px] flex-1 min-w-[80px]">
                             ${rmOpts.replace(`value="${as.room}"`,`value="${as.room}" selected`)}
                         </select>
                         
-                        <select title="曜時限や午前に固定" onchange="actions.updateAssignment(${t.id},${as.id},'fixedTime',this.value,true)" class="m3-input !p-1 !text-[10px] flex-[1.2] min-w-[70px] ${as.fixedTime==='am-priority'?'!bg-blue-50 !text-blue-700':(as.fixedTime?'!bg-amber-50 !text-amber-700':'')}">
+                        <select title="曜時限や午前に固定" onchange="actions.updateAssignment('${t.id}','${as.id}','fixedTime',this.value)" class="m3-input !p-1.5 !text-[10px] flex-[1.2] min-w-[80px] ${as.fixedTime==='am-priority'?'!bg-blue-50 !text-blue-700 border-blue-200':(as.fixedTime?'!bg-amber-50 !text-amber-800 border-amber-300':'')}">
                             ${timeOpts.replace(`value="${as.fixedTime||''}"`,`value="${as.fixedTime||''}" selected`)}
                         </select>
                     </div>
-                `).join('');
+                `;}).join('');
             }
 
-            const cur = t.assignments?.reduce((s,a)=>s+(a.isTT?0:(a.target.includes('年全体')?a.hours*state.grades[a.target.charAt(0)]:(a.target==='自分のクラス'?a.hours:a.target.split(',').length*a.hours))),0)||0;
+            const cur = calculateTeacherLoad(t);
             
             rightHtml = `
             <div class="p-3 bg-blue-50 border-b flex justify-between flex-wrap gap-2 shrink-0">
@@ -351,27 +366,27 @@
                     <h3 class="text-base font-black text-blue-900 truncate max-w-[120px]">${t.name}</h3>
                     <div class="flex items-center gap-1 border-l border-blue-200 pl-2 shrink-0">
                         <select id="copy-src" class="p-1 text-[10px] rounded border border-blue-200 outline-none text-slate-600 bg-white w-20">${copyOpts}</select>
-                        <button onclick="actions.copyTeacherSettings(${t.id}, document.getElementById('copy-src').value)" class="text-[10px] bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded font-bold hover:bg-blue-100">上書き</button>
+                        <button onclick="actions.copyTeacherSettings('${t.id}', document.getElementById('copy-src').value)" class="text-[10px] bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded font-bold hover:bg-blue-100">上書き</button>
                     </div>
                 </div>
                 <div class="flex items-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
                     <span class="text-[10px] font-bold text-slate-500">担任</span>
-                    <select onchange="actions.updateTeacher(${t.id},'homeroom',this.value)" class="p-1 text-xs font-bold rounded border border-slate-200 outline-none bg-slate-50">${hrOpts.replace(`value="${t.homeroom||''}"`, `value="${t.homeroom||''}" selected`)}</select>
+                    <select onchange="actions.updateTeacher('${t.id}','homeroom',this.value)" class="p-1 text-xs font-bold rounded border border-slate-200 outline-none bg-slate-50">${hrOpts.replace(`value="${t.homeroom||''}"`, `value="${t.homeroom||''}" selected`)}</select>
                     <div class="w-px h-4 bg-slate-200"></div>
                     <span class="text-[10px] font-bold text-slate-500">上限</span>
-                    <input type="number" value="${t.maxHours}" onchange="actions.updateTeacher(${t.id},'maxHours',parseInt(this.value)||0)" class="w-10 p-1 text-xs text-center font-bold rounded border border-slate-200 outline-none bg-slate-50">
+                    <input type="number" value="${t.maxHours}" onchange="actions.updateTeacher('${t.id}','maxHours',parseInt(this.value)||0)" class="w-10 p-1 text-xs text-center font-bold rounded border border-slate-200 outline-none bg-slate-50">
                 </div>
             </div>
             <div class="flex-1 overflow-y-auto p-3 flex flex-col xl:flex-row gap-4 custom-scrollbar min-h-0">
                 <div class="shrink-0 flex flex-col items-center">
                     <span class="text-[10px] font-black text-slate-400 mb-1">✕=不可時間</span>
-                    ${getGridHtml(t.ngTimes, state.globalBlocks, `actions.toggleTeacherNG(${t.id}, '__KEY__')`, 'teacher')}
-                    <div id="teacher-load-display" class="w-full mt-4 p-2 bg-blue-50 border border-blue-200 text-blue-800 text-center rounded-lg font-black text-xs transition-colors">持ち時数： ${cur} / ${t.maxHours}</div>
+                    ${getGridHtml(t.ngTimes, state.globalBlocks, `actions.toggleTeacherNG('${t.id}', '__KEY__')`, 'teacher')}
+                    <div id="teacher-load-display" class="w-full mt-4 p-2 ${cur>t.maxHours?'bg-rose-50 text-rose-700 border-rose-200':'bg-blue-50 text-blue-800 border-blue-200'} border text-center rounded-lg font-black text-sm transition-colors shadow-sm">持ち時数： <span class="text-lg">${cur}</span> / ${t.maxHours}</div>
                 </div>
                 <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <div class="flex justify-between items-center mb-2 shrink-0">
                         <span class="text-[10px] font-black text-slate-400">担当授業(長押しで並び替え)</span>
-                        <button onclick="actions.addAssignment(${t.id})" class="m3-btn-action !text-[10px] !py-1 !px-2 bg-blue-50">+追加</button>
+                        <button onclick="actions.addAssignment('${t.id}')" class="m3-btn-action !text-[10px] !py-1 !px-3 bg-blue-50">+ 授業を追加</button>
                     </div>
                     <div id="assignment-list" class="flex-1 overflow-y-auto space-y-2 pr-1 pb-4 min-h-0 relative">
                         ${asListHtml}
@@ -415,15 +430,17 @@
         const errors = []; const classNeeds = {}; const classAssigned = {};
         Object.entries(state.grades).forEach(([g, n]) => { [...Array(n)].forEach((_, i) => { state.subjects.forEach(s => { const k = `${g}-${i+1}-${s.name}`; classNeeds[k] = s.stdHours[g] || 0; classAssigned[k] = 0; }); }); });
         state.teachers.forEach(t => {
-            let tLoad = 0; let avail = 0;
+            let avail = 0;
             DAYS.forEach(d => PERIODS.forEach(p => { if(!t.ngTimes?.[`${d}-${p}`] && !state.globalBlocks[`${d}-${p}`]) avail++; }));
+            
+            // 統一した計算関数を使用
+            const tLoad = calculateTeacherLoad(t);
+
             t.assignments?.forEach(as => {
-                const actHrs = as.isJoint?as.hours:(as.target.includes('年全体')?as.hours*state.grades[as.target.charAt(0)]:(as.target==='自分のクラス'?as.hours:as.target.split(',').length*as.hours));
-                tLoad += actHrs;
                 if(!as.isTT) {
                     if(as.target.includes('年全体')) { for(let i=1; i<=state.grades[as.target.charAt(0)]; i++) classAssigned[`${as.target.charAt(0)}-${i}-${as.subject}`] += as.hours; }
                     else if(as.target==='自分のクラス'&&t.homeroom) { classAssigned[`${t.homeroom}-${as.subject}`] += as.hours; }
-                    else { as.target.split(',').forEach(tgt => { const k = tgt.replace('年','-').replace('組','').trim(); if(classAssigned[`${k}-${as.subject}`]!==undefined) classAssigned[`${k}-${as.subject}`]+=as.hours; }); }
+                    else if(as.target!=='自分のクラス') { as.target.split(',').forEach(tgt => { const k = tgt.replace('年','-').replace('組','').trim(); if(classAssigned[`${k}-${as.subject}`]!==undefined) classAssigned[`${k}-${as.subject}`]+=as.hours; }); }
                 }
             });
             if(tLoad > (t.maxHours||24)) errors.push(`[超過] ${t.name}: 負荷過多 (${tLoad}/${t.maxHours}コマ)`);
@@ -501,37 +518,49 @@
         addSubject() { state.subjects.push({name:'新規科目', stdHours:{1:0,2:0,3:0,4:0,5:0,6:0}}); render(); },
         updateSubject(sIdx, k, v, g=null, skipRender=false) { if(g) state.subjects[sIdx].stdHours[g] = parseInt(v)||0; else state.subjects[sIdx].name = v; save(); if(!skipRender) render(); else { [1,2,3,4,5,6].forEach(gr => { const tot = state.subjects.reduce((sum, s) => sum + (s.stdHours[gr]||0), 0); const el = document.getElementById(`total-hours-${gr}`); if(el) el.innerText = tot; }); } },
         addTeacher() { state.teachers.push({id:Date.now()+Math.random(), name:'教員名', maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); render(); },
-        updateTeacher(id, k, v) { state.teachers.find(t=>t.id===id)[k]=v; save(); this.updateTeacherLoadDisplay(id); },
+        updateTeacher(id, k, v) { state.teachers.find(t=>t.id===id)[k]=v; save(); render(); },
         toggleTeacherNG(id, k) { const t=state.teachers.find(x=>x.id===id); if(!t.ngTimes)t.ngTimes={}; t.ngTimes[k]=!t.ngTimes[k]; render(); },
         
-        // 追加時に新しい一意なIDを付与する
+        setEditing(aId) { 
+            if(state.editingAssignmentId !== aId) {
+                state.editingAssignmentId = aId; 
+                render(); 
+            }
+        },
+
         addAssignment(id) { 
             const t = state.teachers.find(t=>t.id===id); 
             const exSubs = t.assignments.map(a => a.subject); 
             const avSub = state.subjects.find(s => !exSubs.includes(s.name))?.name || state.subjects[0]?.name || ''; 
-            t.assignments.unshift({id: Date.now() + Math.random(), subject:avSub, target:'自分のクラス', hours:1, room:'通常教室', isJoint:false, isTT:false, fixedTime:'', isNew: true}); 
-            save(); render(); 
-            setTimeout(() => { if(t.assignments.length > 0) t.assignments[0].isNew = false; }, 1600); 
+            const newId = `as_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+            t.assignments.unshift({id: newId, subject:avSub, target:'自分のクラス', hours:1, room:'通常教室', isJoint:false, isTT:false, fixedTime:''}); 
+            state.editingAssignmentId = newId; // 追加直後からハイライト
+            render(); 
         },
         
-        updateAssignment(tId, aId, k, v, skipR=false) { const t = state.teachers.find(x=>x.id===tId); t.assignments.find(a=>a.id===aId)[k]=v; save(); if(!skipR) render(); else { this.updateTeacherLoadDisplay(tId); } },
-        updateTeacherLoadDisplay(tId) { const t = state.teachers.find(x=>x.id===tId); if(!t) return; const cur = t.assignments?.reduce((s,a)=>s+(a.isTT?0:(a.target.includes('年全体')?a.hours*state.grades[a.target.charAt(0)]:(a.target==='自分のクラス'?a.hours:a.target.split(',').length * a.hours))),0)||0; const max = t.maxHours || 24; const el = document.getElementById('teacher-load-display'); if(el) { el.innerText = `持ち時数： ${cur} / ${max}`; if(cur > max) { el.classList.add('text-rose-600', 'bg-rose-50', 'border-rose-200'); el.classList.remove('text-blue-800', 'bg-blue-50', 'border-blue-200'); } else { el.classList.remove('text-rose-600', 'bg-rose-50', 'border-rose-200'); el.classList.add('text-blue-800', 'bg-blue-50', 'border-blue-200'); } } const leftEl = document.getElementById(`left-load-${tId}`); if(leftEl) { leftEl.innerText = `${cur}/${max}`; if(cur > max) leftEl.className = 'text-[9px] px-1.5 py-0.5 rounded shrink-0 text-rose-500 font-black bg-rose-100'; else leftEl.className = `text-[9px] px-1.5 py-0.5 rounded shrink-0 ${state.selectedTeacherId === tId ? 'text-blue-200 bg-black/10' : 'text-slate-400 bg-black/10'}`; } },
-        
-        // ★バグ修正：削除アニメーションを安全に行う（el.remove()でDOM再利用バグを防止）
-        removeAssignmentWithAnim(tId, aId, elId) { 
-            const el = document.getElementById(elId); 
-            if(el) { 
-                el.classList.add('removing-item');
-                setTimeout(() => { 
-                    el.remove(); // 確実にDOMから粉砕する
-                    this.removeAssignment(tId, aId); 
-                }, 300); 
-            } else { 
-                this.removeAssignment(tId, aId); 
-            } 
+        updateAssignment(tId, aId, k, v) { 
+            const t = state.teachers.find(x=>x.id===tId); 
+            t.assignments.find(a=>a.id===aId)[k]=v; 
+            state.editingAssignmentId = aId;
+            render(); 
         },
-        removeAssignment(tId, aId) { const t = state.teachers.find(x=>x.id===tId); t.assignments = t.assignments.filter(a=>a.id!==aId); save(); render(); },
-        reorderAssignment(tId, oldI, newI) { const t = state.teachers.find(x=>x.id===tId); const item = t.assignments.splice(oldI, 1)[0]; t.assignments.splice(newI, 0, item); save(); },
+        
+        removeAssignment(tId, aId) { 
+            const t = state.teachers.find(x=>x.id===tId); 
+            t.assignments = t.assignments.filter(a=>a.id!==aId); 
+            if(state.editingAssignmentId === aId) state.editingAssignmentId = null;
+            render(); 
+        },
+        
+        reorderAssignment(tId, oldI, newI) { 
+            const t = state.teachers.find(x=>x.id===tId); 
+            const item = t.assignments.splice(oldI, 1)[0]; 
+            t.assignments.splice(newI, 0, item); 
+            save(); 
+            // Sortableの更新完了を待ってから完全再描画（DOMの食い違いバグ防止）
+            setTimeout(() => render(), 10);
+        },
+        
         toggleBlock(k) { state.globalBlocks[k] = !state.globalBlocks[k]; render(); },
         addCont() { const s=document.getElementById('adv-s').value; if(s) state.advancedRules.continuousClasses.push({grade:'全学年', subject:s}); render(); },
         toggleLastPeriod(s) { if(!state.advancedRules.lastPeriodSubjects) state.advancedRules.lastPeriodSubjects = []; const idx = state.advancedRules.lastPeriodSubjects.indexOf(s); if(idx>-1) state.advancedRules.lastPeriodSubjects.splice(idx,1); else state.advancedRules.lastPeriodSubjects.push(s); save(); },
@@ -543,8 +572,8 @@
         resetData() { if(confirm("初期化しますか？")) { localStorage.clear(); location.reload(); } },
         addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-g').value||'1', subject:document.getElementById('mg-sub').value||'算数', groupCount:document.getElementById('mg-c').value||'4', teacherCount:document.getElementById('mg-t').value||'4', totalTeacherCount:document.getElementById('mg-tot').value||'4', hours:document.getElementById('mg-h').value||'4'}); render(); },
         copyTeacherSettings(tgtId, srcId) { if(!srcId) return; const src = state.teachers.find(x => String(x.id) === srcId); const tgt = state.teachers.find(x => x.id === tgtId); tgt.maxHours = src.maxHours; tgt.ngTimes = JSON.parse(JSON.stringify(src.ngTimes || {})); tgt.assignments = JSON.parse(JSON.stringify(src.assignments || [])); showToast("コピーしました"); render(); },
-        openCustomTargetModal(tId, aId) { const ov = document.getElementById('modal-overlay'); const bd = document.getElementById('modal-body'); ov.classList.remove('hidden'); const t = state.teachers.find(x=>x.id===tId); const sel = t.assignments.find(a=>a.id===aId).target.split(',').map(s=>s.trim()); let h = `<h3 class="text-xl font-black mb-2 text-blue-900">複数クラスを選択</h3><div class="grid grid-cols-3 gap-2 mb-4 overflow-y-auto max-h-[50vh]">`; [1,2,3,4,5,6].forEach(g => { for(let c=1; c<=state.grades[g]; c++) { const v = `${g}年${c}組`; h += `<label class="flex items-center gap-2 p-2 bg-slate-50 rounded border cursor-pointer"><input type="checkbox" value="${v}" class="custom-target-chk w-4 h-4" ${sel.includes(v)?'checked':''}><span class="text-xs font-bold">${v}</span></label>`; } }); h += `</div><div class="flex gap-4"><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="flex-1 p-3 bg-slate-100 font-bold rounded-xl">閉じる</button><button onclick="actions.saveCustomTarget(${tId}, ${aId})" class="flex-1 bg-blue-600 text-white font-black rounded-xl">決定</button></div>`; bd.innerHTML = h; },
-        saveCustomTarget(tId, aId) { const vals = Array.from(document.querySelectorAll('.custom-target-chk:checked')).map(c => c.value); const str = vals.length > 0 ? vals.join(', ') : '自分のクラス'; this.updateAssignment(tId, aId, 'target', str, true); const el = document.getElementById(`target-select-${aId}`); if(el) el.innerHTML = this.getTargetOptions(str); document.getElementById('modal-overlay').classList.add('hidden'); }
+        openCustomTargetModal(tId, aId) { const ov = document.getElementById('modal-overlay'); const bd = document.getElementById('modal-body'); ov.classList.remove('hidden'); const t = state.teachers.find(x=>x.id===tId); const sel = t.assignments.find(a=>a.id===aId).target.split(',').map(s=>s.trim()); let h = `<h3 class="text-xl font-black mb-2 text-blue-900">複数クラスを選択</h3><div class="grid grid-cols-3 gap-2 mb-4 overflow-y-auto max-h-[50vh] custom-scrollbar pr-2">`; [1,2,3,4,5,6].forEach(g => { for(let c=1; c<=state.grades[g]; c++) { const v = `${g}年${c}組`; h += `<label class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border cursor-pointer hover:bg-blue-50 transition-colors"><input type="checkbox" value="${v}" class="custom-target-chk w-4 h-4" ${sel.includes(v)?'checked':''}><span class="text-sm font-bold">${v}</span></label>`; } }); h += `</div><div class="flex gap-4"><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="flex-1 p-3 bg-slate-100 font-bold rounded-xl hover:bg-slate-200">キャンセル</button><button onclick="actions.saveCustomTarget('${tId}', '${aId}')" class="flex-1 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 shadow-sm">決定</button></div>`; bd.innerHTML = h; },
+        saveCustomTarget(tId, aId) { const vals = Array.from(document.querySelectorAll('.custom-target-chk:checked')).map(c => c.value); const str = vals.length > 0 ? vals.join(', ') : '自分のクラス'; state.editingAssignmentId = aId; this.updateAssignment(tId, aId, 'target', str); document.getElementById('modal-overlay').classList.add('hidden'); }
     };
     document.getElementById('btn-next').onclick = () => { if(currentStep===9) actions.startGeneration(); else if(currentStep<MAX_STEPS) { currentStep++; render(); } else { actions.exportToSpreadsheet(); } };
     document.getElementById('btn-prev').onclick = () => { if(currentStep>1) { currentStep--; render(); } };
