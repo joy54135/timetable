@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 11.1 (GitHub Pages + High-Density UI Edition)
+  Version: 11.2 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: スクロール飛び完全排除・持ち時数リアルタイム連動・ドラッグスクロール対応
+  Description: 旧データ(IDなし)の授業を編集した際に最上部が書き換わる致命的バグの修正
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 11.1</title>
+    <title>Smart TimeTable - Ver 11.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -128,11 +128,27 @@
 
     function showToast(msg) { const t = document.getElementById('toast'); document.getElementById('toast-msg').innerText = msg; t.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 2500); }
 
-    function save() { try { localStorage.setItem('tt_v111_data', JSON.stringify(state)); } catch(e) {} }
+    function save() { try { localStorage.setItem('tt_v112_data', JSON.stringify(state)); } catch(e) {} }
     function load() {
         try {
-            const s = localStorage.getItem('tt_v111_data');
-            if(s) { const p = JSON.parse(s); if(p.subjects) { state.subjects.forEach(d => { if(!p.subjects.find(x => x.name === d.name)) p.subjects.push(d); }); } Object.assign(state, p); return true; }
+            // 過去のバージョンのデータも読み込めるようにフォールバック設定
+            const s = localStorage.getItem('tt_v112_data') || localStorage.getItem('tt_v111_data') || localStorage.getItem('tt_v109_data');
+            if(s) { 
+                const p = JSON.parse(s); 
+                if(p.subjects) { state.subjects.forEach(d => { if(!p.subjects.find(x => x.name === d.name)) p.subjects.push(d); }); } 
+                
+                // ★バグ修正：古いデータで授業（assignment）にIDがない場合、自動修復して新しいIDを割り振る
+                if(p.teachers) {
+                    p.teachers.forEach(t => {
+                        if(t.assignments) {
+                            t.assignments.forEach(a => {
+                                if(!a.id) a.id = Date.now() + Math.random();
+                            });
+                        }
+                    });
+                }
+                Object.assign(state, p); return true; 
+            }
         } catch(e) {} return false;
     }
 
@@ -225,13 +241,13 @@
                     <div class="flex justify-between mb-1"><span class="text-[10px] font-black text-slate-400">担当授業(長押しで並び替え)</span><button onclick="actions.addAssignment(${t.id})" class="m3-btn-action !text-[10px]">+追加</button></div>
                     <div id="assignment-list" class="flex-1 overflow-y-auto space-y-2 pr-1 pb-4">
                         ${t.assignments.map(as => `<div id="as-item-${as.id}" class="p-2 border rounded-xl bg-slate-50 flex flex-wrap gap-1.5 relative group ${as.isNew?'new-item':''}"><button onclick="actions.removeAssignmentWithAnim(${t.id},${as.id},'as-item-${as.id}')" class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border rounded-full text-[9px] z-10 shadow-sm opacity-0 group-hover:opacity-100 hover:text-rose-500">✕</button>
-                            <select onchange="actions.updateAssignment(${t.id},${as.id},'subject',this.value,true)" class="flex-1 text-xs font-bold border rounded p-1 min-w-[60px]">${state.subjects.map(s=>`<option value="${s.name}" ${s.name===as.subject?'selected':''}>${s.name}</option>`).join('')}</select>
+                            <select title="科目を選択" onchange="actions.updateAssignment(${t.id},${as.id},'subject',this.value,true)" class="flex-1 text-xs font-bold border rounded p-1 min-w-[60px]">${state.subjects.map(s=>`<option value="${s.name}" ${s.name===as.subject?'selected':''}>${s.name}</option>`).join('')}</select>
                             <div class="flex items-center gap-1 flex-[1.5] min-w-[120px]"><select id="target-select-${as.id}" onchange="if(this.value==='custom') actions.openCustomTargetModal(${t.id},${as.id}); else actions.updateAssignment(${t.id},${as.id},'target',this.value,true)" class="w-full text-xs font-bold border rounded p-1">${actions.getTargetOptions(as.target)}</select><button onclick="actions.openCustomTargetModal(${t.id},${as.id})" class="text-[9px] bg-white border px-1.5 rounded shadow-sm text-blue-600 font-bold shrink-0 whitespace-nowrap">+複数</button></div>
                             <div class="flex items-center border rounded bg-white px-1"><input type="number" value="${as.hours}" onchange="actions.updateAssignment(${t.id},${as.id},'hours',parseInt(this.value)||1,true)" class="w-8 text-xs font-black text-blue-600 text-center outline-none"><span>回</span></div>
                             <div class="flex items-center gap-1.5 px-2 py-1 bg-white border rounded"><label class="flex items-center gap-0.5 text-[9px] font-bold"><input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${t.id},${as.id},'isJoint',this.checked,true)">合同</label><label class="flex items-center gap-0.5 text-[9px] font-bold border-l pl-1.5"><input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${t.id},${as.id},'isTT',this.checked,true)">副担当(TT)</label></div>
                             <div class="w-full border-t border-dashed h-px my-0.5"></div>
-                            <select onchange="actions.updateAssignment(${t.id},${as.id},'room',this.value,true)" class="flex-1 text-[10px] border rounded p-1 min-w-[70px]">${rmOpts.replace(`value="${as.room}"`,`value="${as.room}" selected`)}</select>
-                            <select onchange="actions.updateAssignment(${t.id},${as.id},'fixedTime',this.value,true)" class="flex-[1.2] text-[10px] border rounded p-1 min-w-[70px] ${as.fixedTime?'bg-amber-50 border-amber-300':''}">${timeOpts.replace(`value="${as.fixedTime||''}"`,`value="${as.fixedTime||''}" selected`)}</select>
+                            <select title="教室を選択" onchange="actions.updateAssignment(${t.id},${as.id},'room',this.value,true)" class="flex-1 text-[10px] border rounded p-1 min-w-[70px]">${rmOpts.replace(`value="${as.room}"`,`value="${as.room}" selected`)}</select>
+                            <select title="特定の曜時限に固定" onchange="actions.updateAssignment(${t.id},${as.id},'fixedTime',this.value,true)" class="flex-[1.2] text-[10px] border rounded p-1 min-w-[70px] ${as.fixedTime?'bg-amber-50 border-amber-300':''}">${timeOpts.replace(`value="${as.fixedTime||''}"`,`value="${as.fixedTime||''}" selected`)}</select>
                         </div>`).join('')}
                     </div>
                 </div>
@@ -319,9 +335,19 @@
         addTeacher() { state.teachers.push({id:Date.now()+Math.random(), name:'教員名', maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); render(); },
         updateTeacher(id, k, v) { state.teachers.find(t=>t.id===id)[k]=v; save(); this.updateTeacherLoadDisplay(id); },
         toggleTeacherNG(id, k) { const t=state.teachers.find(x=>x.id===id); if(!t.ngTimes)t.ngTimes={}; t.ngTimes[k]=!t.ngTimes[k]; render(); },
-        addAssignment(id) { const t = state.teachers.find(t=>t.id===id); const exSubs = t.assignments.map(a => a.subject); const avSub = state.subjects.find(s => !exSubs.includes(s.name))?.name || state.subjects[0]?.name || ''; t.assignments.unshift({id: Date.now(), subject:avSub, target:'自分のクラス', hours:1, room:'通常教室', isJoint:false, isTT:false, fixedTime:'', isNew: true}); save(); render(); setTimeout(() => { if(t.assignments.length > 0) t.assignments[0].isNew = false; }, 1600); },
+        
+        // ★修正ポイント：addAssignment 時に一意なID（Date.now() + Math.random()）を付与する
+        addAssignment(id) { 
+            const t = state.teachers.find(t=>t.id===id); 
+            const exSubs = t.assignments.map(a => a.subject); 
+            const avSub = state.subjects.find(s => !exSubs.includes(s.name))?.name || state.subjects[0]?.name || ''; 
+            t.assignments.unshift({id: Date.now() + Math.random(), subject:avSub, target:'自分のクラス', hours:1, room:'通常教室', isJoint:false, isTT:false, fixedTime:'', isNew: true}); 
+            save(); render(); 
+            setTimeout(() => { if(t.assignments.length > 0) t.assignments[0].isNew = false; }, 1600); 
+        },
+        
         updateAssignment(tId, aId, k, v, skipR=false) { const t = state.teachers.find(x=>x.id===tId); t.assignments.find(a=>a.id===aId)[k]=v; save(); if(!skipR) render(); else { this.updateTeacherLoadDisplay(tId); } },
-        updateTeacherLoadDisplay(tId) { const t = state.teachers.find(x=>x.id===tId); if(!t) return; const cur = t.assignments?.reduce((s,a)=>s+(a.isTT?0:(a.isJoint?a.hours:(a.target.includes('年全体')?a.hours*state.grades[a.target.charAt(0)]:(a.target==='自分のクラス'?a.hours:a.target.split(',').length * a.hours)))),0)||0; const max = t.maxHours || 24; const el = document.getElementById('teacher-load-display'); if(el) { el.innerText = `持ち時数： ${cur} / ${max}`; if(cur > max) { el.classList.add('text-rose-600', 'bg-rose-50', 'border-rose-200'); el.classList.remove('text-blue-800', 'bg-blue-50', 'border-blue-200'); } else { el.classList.remove('text-rose-600', 'bg-rose-50', 'border-rose-200'); el.classList.add('text-blue-800', 'bg-blue-50', 'border-blue-200'); } } const leftEl = document.getElementById(`left-load-${tId}`); if(leftEl) { leftEl.innerText = `${cur}/${max}`; if(cur > max) leftEl.className = 'text-[9px] px-1.5 py-0.5 rounded shrink-0 text-rose-500 font-black bg-rose-100'; else leftEl.className = `text-[9px] px-1.5 py-0.5 rounded shrink-0 ${state.selectedTeacherId === tId ? 'text-blue-200 bg-black/10' : 'text-slate-400 bg-black/10'}`; } },
+        updateTeacherLoadDisplay(tId) { const t = state.teachers.find(x=>x.id===tId); if(!t) return; const cur = t.assignments?.reduce((s,a)=>s+(a.isTT?0:(a.target.includes('年全体')?a.hours*state.grades[a.target.charAt(0)]:(a.target==='自分のクラス'?a.hours:a.target.split(',').length * a.hours))),0)||0; const max = t.maxHours || 24; const el = document.getElementById('teacher-load-display'); if(el) { el.innerText = `持ち時数： ${cur} / ${max}`; if(cur > max) { el.classList.add('text-rose-600', 'bg-rose-50', 'border-rose-200'); el.classList.remove('text-blue-800', 'bg-blue-50', 'border-blue-200'); } else { el.classList.remove('text-rose-600', 'bg-rose-50', 'border-rose-200'); el.classList.add('text-blue-800', 'bg-blue-50', 'border-blue-200'); } } const leftEl = document.getElementById(`left-load-${tId}`); if(leftEl) { leftEl.innerText = `${cur}/${max}`; if(cur > max) leftEl.className = 'text-[9px] px-1.5 py-0.5 rounded shrink-0 text-rose-500 font-black bg-rose-100'; else leftEl.className = `text-[9px] px-1.5 py-0.5 rounded shrink-0 ${state.selectedTeacherId === tId ? 'text-blue-200 bg-black/10' : 'text-slate-400 bg-black/10'}`; } },
         removeAssignmentWithAnim(tId, aId, elId) { const el = document.getElementById(elId); if(el) { el.style.transition = 'all 0.3s'; el.style.opacity = '0'; el.style.height = '0px'; el.style.padding = '0px'; el.style.margin = '0px'; el.style.overflow = 'hidden'; setTimeout(() => { const t = state.teachers.find(x=>x.id===tId); t.assignments = t.assignments.filter(a=>a.id!==aId); save(); render(); }, 300); } else { const t = state.teachers.find(x=>x.id===tId); t.assignments = t.assignments.filter(a=>a.id!==aId); save(); render(); } },
         reorderAssignment(tId, oldI, newI) { const t = state.teachers.find(x=>x.id===tId); const item = t.assignments.splice(oldI, 1)[0]; t.assignments.splice(newI, 0, item); save(); },
         toggleBlock(k) { state.globalBlocks[k] = !state.globalBlocks[k]; render(); },
