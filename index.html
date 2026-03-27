@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.2 (Next Generation)
+  Version: 13.3 (Next Generation)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: ステップ順序変更、教員選択バグ修正、不可枠設定の復活
+  Description: 解決案A(マトリックス進化版)、合計行表示、行複製機能搭載
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.2 (NEXT)</title>
+    <title>Smart TimeTable - Ver 13.3 (NEXT)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -82,7 +82,6 @@
     const PERIODS = [1, 2, 3, 4, 5, 6];
     const MAX_STEPS = 9;
     
-    // ステップ順序の変更を反映
     const stepTitles = ["1. 基本設定", "2. 教科と教室", "3. 特殊授業ブロック", "4. 行事・全校不可枠", "5. 教員名簿と不可枠", "6. クラス別 担当割り当て", "7. 配置ルール", "8. 点検", "9. ダッシュボード"];
     let currentStep = 1;
 
@@ -308,9 +307,12 @@
             </div>
         </div>`;
 
-    // Step 2: 教室・教科設定
+    // Step 2: 教室・教科設定 (解決案A: マトリックス進化版)
     const viewStep2 = () => {
         const rmOpts = `<option value="通常教室">通常教室</option>` + state.rooms.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+        // ★ 各学年の時数合計を計算
+        const totals = GRADES.reduce((acc, g) => ({...acc, [g]: state.subjects.reduce((s, sub) => s + (parseInt(sub.stdHours[g])||0), 0)}), {});
+
         return `
         <div class="flex flex-col md:flex-row gap-4 h-full">
             <div class="w-full md:w-1/4 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-1/3 md:h-full">
@@ -328,23 +330,21 @@
             <div class="flex-1 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-2/3 md:h-full overflow-hidden">
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="font-black text-xs">教科・標準時数・デフォルト教室</h3>
-                    <div class="relative group">
-                        <button class="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-3 py-1.5 rounded-md font-bold shadow-sm hover:bg-blue-100">+ 追加</button>
-                        <div class="absolute right-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl hidden group-hover:flex flex-col w-56 z-50 overflow-hidden">
-                            <button onclick="actions.addSubject('新規教科')" class="p-3 text-left text-xs hover:bg-blue-50 font-black border-b border-slate-100 text-blue-600">✨ 新規教科を作成</button>
-                            <div class="p-2 text-[10px] text-slate-400 bg-slate-50 font-bold">既存教科を複製</div>
-                            <div class="max-h-48 overflow-y-auto custom-scrollbar">
-                                ${Array.from(new Set(state.subjects.map(s=>s.name))).map(name => `<button onclick="actions.addSubject('${name}')" class="p-2.5 w-full text-left text-xs hover:bg-blue-50 border-b border-slate-100 font-bold text-slate-700">${name}</button>`).join('')}
-                            </div>
-                        </div>
-                    </div>
+                    <button onclick="actions.addSubject('新規教科')" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-md font-bold shadow-sm hover:bg-blue-700">+ 新規教科を作成</button>
                 </div>
                 <div class="flex-1 overflow-auto custom-scrollbar pr-1 relative border border-slate-200 rounded-xl bg-white" id="step2-subs-scroll">
                     <table class="w-full text-xs text-center border-collapse min-w-[700px]">
-                    <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm rounded-t-lg"><tr><th class="p-2 border-r border-slate-200 text-left pl-3 w-28">科目名</th><th class="p-2 border-r border-slate-200 w-24">基本の教室</th>${GRADES.map(g=>`<th class="p-2 border-r border-slate-200">${g}年</th>`).join('')}<th class="w-8"></th></tr></thead>
+                    <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm rounded-t-lg"><tr><th class="p-2 border-r border-slate-200 text-left pl-3 w-28">科目名</th><th class="p-2 border-r border-slate-200 w-24">基本の教室</th>${GRADES.map(g=>`<th class="p-2 border-r border-slate-200">${g}年</th>`).join('')}<th class="w-12"></th></tr></thead>
                     <tbody>
-                        ${state.subjects.map((s) => `<tr class="border-b border-slate-100 hover:bg-slate-50"><td class="p-1 border-r border-slate-100"><input type="text" value="${s.name}" onchange="actions.updateSubject('${s.id}', 'name', this.value)" class="m3-input !p-1.5 w-full font-bold bg-transparent border-transparent focus:bg-white focus:border-blue-300 shadow-none hover:bg-slate-100 focus:shadow-sm"></td><td class="p-1 border-r border-slate-100"><select onchange="actions.updateSubject('${s.id}', 'defaultRoom', this.value)" class="m3-input !p-1.5 text-[10px] w-full bg-transparent border-transparent focus:bg-white focus:border-blue-300 cursor-pointer shadow-none hover:bg-slate-100 focus:shadow-sm">${rmOpts.replace(`value="${s.defaultRoom||'通常教室'}"`, `value="${s.defaultRoom||'通常教室'}" selected`)}</select></td>${GRADES.map(g=>`<td class="p-1 border-r border-slate-100"><div class="flex items-center justify-center gap-1"><button onclick="actions.updateSubjectHour('${s.id}', ${g}, -1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded font-black text-slate-500 transition-colors">-</button><span class="w-4 text-center font-black text-blue-600">${s.stdHours[g]||0}</span><button onclick="actions.updateSubjectHour('${s.id}', ${g}, 1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded font-black text-slate-500 transition-colors">+</button></div></td>`).join('')}<td><button onclick="actions.removeSubject('${s.id}')" class="text-slate-300 hover:text-rose-500 font-bold p-1">✕</button></td></tr>`).join('')}
+                        ${state.subjects.map((s) => `<tr class="border-b border-slate-100 hover:bg-slate-50"><td class="p-1 border-r border-slate-100"><input type="text" value="${s.name}" onchange="actions.updateSubject('${s.id}', 'name', this.value)" class="m3-input !p-1.5 w-full font-bold bg-transparent border-transparent focus:bg-white focus:border-blue-300 shadow-none hover:bg-slate-100 focus:shadow-sm"></td><td class="p-1 border-r border-slate-100"><select onchange="actions.updateSubject('${s.id}', 'defaultRoom', this.value)" class="m3-input !p-1.5 text-[10px] w-full bg-transparent border-transparent focus:bg-white focus:border-blue-300 cursor-pointer shadow-none hover:bg-slate-100 focus:shadow-sm">${rmOpts.replace(`value="${s.defaultRoom||'通常教室'}"`, `value="${s.defaultRoom||'通常教室'}" selected`)}</select></td>${GRADES.map(g=>`<td class="p-1 border-r border-slate-100"><div class="flex items-center justify-center gap-1"><button onclick="actions.updateSubjectHour('${s.id}', ${g}, -1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded font-black text-slate-500 transition-colors">-</button><span class="w-4 text-center font-black text-blue-600">${s.stdHours[g]||0}</span><button onclick="actions.updateSubjectHour('${s.id}', ${g}, 1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded font-black text-slate-500 transition-colors">+</button></div></td>`).join('')}<td><div class="flex items-center justify-center gap-1"><button onclick="actions.cloneSubject('${s.id}')" title="複製して教室を分ける" class="text-blue-400 hover:text-blue-600 font-bold p-1">📋</button><button onclick="actions.removeSubject('${s.id}')" class="text-slate-300 hover:text-rose-500 font-bold p-1">✕</button></div></td></tr>`).join('')}
                     </tbody>
+                    <tfoot class="sticky bottom-0 bg-blue-50 border-t-2 border-blue-200 shadow-[0_-2px_4px_rgba(0,0,0,0.05)] z-10">
+                        <tr>
+                            <td colspan="2" class="p-2 border-r border-blue-100 font-black text-blue-800 text-right pr-4">合計時数</td>
+                            ${GRADES.map(g => `<td class="p-2 border-r border-blue-100 font-black text-blue-700 text-sm">${totals[g]}</td>`).join('')}
+                            <td></td>
+                        </tr>
+                    </tfoot>
                 </table></div>
             </div>
         </div>`;
@@ -405,7 +405,7 @@
             </div>
         </div>`;
 
-    // Step 5: 教員名簿と不可枠 (旧Step 3) - 選択バグ修正＆不可枠復活
+    // Step 5: 教員名簿と不可枠 (旧Step 3)
     const viewStep5 = () => {
         if(!state.selectedTeacherId && state.teachers.length > 0) state.selectedTeacherId = state.teachers[0].id;
         const t = state.teachers.find(x => String(x.id) === String(state.selectedTeacherId));
@@ -444,7 +444,7 @@
         </div>`;
     };
 
-    // Step 6: クラス別担当設定 (NEW MAIN UI)
+    // Step 6: クラス別担当設定
     const viewStep6 = () => {
         const classes = Object.keys(state.classAssignments);
         const activeCls = state.dashFilter && classes.includes(state.dashFilter) ? state.dashFilter : classes[0];
@@ -613,7 +613,7 @@
 
     // --- Actions ---
     window.actions = {
-        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_2.json"; a.click(); },
+        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_3.json"; a.click(); },
         importData: () => { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ try { sanitizeState(JSON.parse(e.target.result)); currentStep=1; render(); showToast("読み込みました", "success"); } catch(err) { showToast("エラー", "error"); } } }; i.click(); },
         resetData: () => { if(confirm("初期化しますか？")) { localStorage.clear(); location.reload(); } },
         
@@ -625,6 +625,18 @@
             const exist = state.subjects.find(s => s.name === name);
             state.subjects.push({ id: 's_' + Date.now() + Math.random(), name: name, stdHours: exist ? JSON.parse(JSON.stringify(exist.stdHours)) : {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}, defaultRoom: exist ? exist.defaultRoom : '通常教室' });
             render();
+        },
+        cloneSubject: (id) => {
+            const s = state.subjects.find(x => x.id === id);
+            if(s) {
+                state.subjects.splice(state.subjects.indexOf(s) + 1, 0, {
+                    id: 's_' + Date.now() + Math.random(),
+                    name: s.name,
+                    stdHours: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}, // 複製時は時数0にする（二重カウント防止）
+                    defaultRoom: s.defaultRoom
+                });
+                render();
+            }
         },
         updateSubject: (id, key, val) => { const s = state.subjects.find(x => x.id === id); if(s) s[key] = val; render(); },
         updateSubjectHour: (id, grade, delta) => { const s = state.subjects.find(x => x.id === id); if(s) s.stdHours[grade] = Math.max(0, (parseInt(s.stdHours[grade])||0) + delta); render(); },
