@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 12.1 (Ultimate UI & Stable Sync)
+  Version: 12.2 (Ultimate UI & Stable Sync)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 一覧性倍増UI、上書きバグ修正、教員連番化、インポート即時同期
+  Description: 真っ白バグ修正、GAS URL更新、一覧性倍増UI、上書きバグ修正、教員連番化、インポート即時同期
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 12.1</title>
+    <title>Smart TimeTable - Ver 12.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -56,6 +56,13 @@
         .new-item { animation: highlightNew 1.5s ease-out forwards; }
         .editing-item { border-color: #3b82f6 !important; background-color: #eff6ff !important; box-shadow: 0 0 0 2px rgba(59,130,246,0.2) !important; }
         
+        /* 削除アニメーション（安全版） */
+        @keyframes shrinkOut {
+            0% { opacity: 1; max-height: 500px; padding: 0.5rem; margin-bottom: 0.5rem; border-width: 1px; transform: scale(1); }
+            100% { opacity: 0; max-height: 0; padding: 0; margin-bottom: 0; border-width: 0; overflow: hidden; transform: scale(0.95) translateX(20px); }
+        }
+        .removing-item { animation: shrinkOut 0.3s ease forwards !important; pointer-events: none; }
+        
         /* ドラッグアニメーション */
         .sortable-ghost { opacity: 0.2; background: #3b82f6 !important; }
         .sortable-drag { opacity: 0.9 !important; background: #ffffff !important; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1) !important; z-index: 100 !important; cursor: grabbing !important; }
@@ -73,7 +80,7 @@
             </div>
             <div class="min-w-0 flex items-baseline gap-2">
                 <h1 class="text-xl font-black tracking-tighter text-slate-800 truncate leading-none">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 12.1 Ultimate UI</p>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 12.2 Ultimate UI</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -106,7 +113,9 @@
 </div>
 
 <script>
+    // 指定された新しいGAS URL
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxRLfhPWeCD3WOTorIToeP_qAPHJtTHlGEtMwYG7kpTGpaUsES5h0dYaOweLyBMkw5I/exec";
+    
     const DAYS = ['月', '火', '水', '木', '金'];
     const PERIODS = [1, 2, 3, 4, 5, 6];
     let currentStep = 1;
@@ -129,6 +138,9 @@
         editingAssignmentId: null
     };
 
+    // ★真っ白バグ修正：ステップタイトル配列の定義
+    const stepTitles = ["1.日課時数", "2.クラス数", "3.教室設定", "4.科目・時数", "5.全校ブロック", "6.教員名簿", "7.担当授業設定", "8.少人数指導", "9.配置ルール", "10.ダッシュボード"];
+
     let lastTouchEnd = 0;
     document.addEventListener('touchend', function (event) {
         const now = (new Date()).getTime();
@@ -139,7 +151,14 @@
         lastTouchEnd = now;
     }, { passive: false });
 
-    function showToast(msg) { const t = document.getElementById('toast'); document.getElementById('toast-msg').innerText = msg; t.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 2500); }
+    function showToast(msg, type="info") { 
+        const t = document.getElementById('toast'); 
+        document.getElementById('toast-msg').innerText = msg;
+        if(type === "success") { t.classList.replace('bg-slate-800', 'bg-green-600'); }
+        else { t.classList.replace('bg-green-600', 'bg-slate-800'); }
+        t.classList.replace('opacity-0', 'opacity-100'); 
+        setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 2500); 
+    }
     
     let saveTimeout = null;
     function save() { 
@@ -160,7 +179,7 @@
             const res = await response.json();
             if (res.success && res.state) {
                 Object.assign(state, res.state);
-                showToast("クラウドから復元しました");
+                showToast("クラウドから復元しました", "success");
             } else loadLocalFallback();
         } catch(e) {
             loadLocalFallback();
@@ -190,7 +209,6 @@
         } catch(e) { } 
     }
 
-    // ★持ち時数計算の完全統一関数
     function calculateTeacherLoad(teacher) {
         if(!teacher || !teacher.assignments) return 0;
         return teacher.assignments.reduce((sum, a) => {
@@ -336,6 +354,7 @@
     function viewStep3(el) {
         if(!state.selectedRoomId && state.rooms.length > 0) state.selectedRoomId = state.rooms[0].id;
         const room = state.rooms.find(r => r.id === state.selectedRoomId);
+
         el.innerHTML = `<div class="mb-3 flex flex-wrap justify-between items-end gap-2 shrink-0">
             <div><h2 class="text-lg font-black">3. 特別教室の不可枠設定</h2><p class="text-[10px] text-slate-500">同時に使えるクラス数と不可時間を設定します。</p></div>
             <div class="flex gap-2"><button onclick="actions.openBulk('rooms')" class="m3-btn-action">一括貼付</button><button onclick="actions.addRoom()" class="m3-btn-action">+追加</button></div>
@@ -486,7 +505,7 @@
                     const frameClass = isEditing ? 'editing-item' : 'bg-slate-50 border-slate-200 hover:border-blue-300';
                     return `
                     <div id="as-item-${as.id}" onclick="actions.setEditing('${as.id}')" class="p-1.5 md:p-2 border rounded-xl flex flex-row items-center gap-1.5 md:gap-2 relative group shrink-0 transition-all cursor-pointer ${frameClass} ${as.isNew?'new-item':''} overflow-x-auto custom-scrollbar whitespace-nowrap">
-                        <button onclick="event.stopPropagation(); actions.removeAssignment('${teacher.id}', '${as.id}')" title="削除" class="shrink-0 w-5 h-5 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 text-[10px] transition-all font-bold">✕</button>
+                        <button onclick="event.stopPropagation(); actions.removeAssignmentWithAnim('${teacher.id}', '${as.id}', 'as-item-${as.id}')" title="削除" class="shrink-0 w-5 h-5 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 text-[10px] transition-all font-bold">✕</button>
                         
                         <select title="科目を選択" onchange="actions.updateAssignment('${teacher.id}', '${as.id}', 'subject', this.value)" class="m3-input !p-1 !text-[11px] w-20 shrink-0">
                             ${state.subjects.map(s=>`<option value="${s.name}" ${s.name===as.subject?'selected':''}>${s.name}</option>`).join('')}
@@ -789,7 +808,7 @@
     }
 
     function viewStep10(el) {
-        if(!state.generatedSchedule) { el.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400 font-black text-sm">自動生成を実行してください</div>`; return; }
+        if(!state.generatedSchedule) { el.innerHTML = `<div class="flex-1 flex items-center justify-center text-slate-400 font-black text-sm">自動生成を実行してください</div>`; return; }
         actions.validateConflicts();
 
         let filterOpts = "";
@@ -845,7 +864,7 @@
             try {
                 const response = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'generate', state: state }) });
                 const res = await response.json();
-                if (res.success) { state.generatedSchedule = res.schedule; currentStep = 10; render(); showToast("自動生成成功！"); } 
+                if (res.success) { state.generatedSchedule = res.schedule; currentStep = 10; render(); showToast("自動生成成功！", "success"); } 
                 else { showToast("生成エラー: " + res.message); }
             } catch (e) { showToast("通信エラーが発生しました。"); console.error(e); } 
             finally { document.getElementById('loading-overlay').classList.replace('flex', 'hidden'); }
@@ -855,7 +874,7 @@
             try {
                 const response = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'export', schedule: state.generatedSchedule, state: state }) });
                 const res = await response.json();
-                if(res.success) showToast("スプレッドシートに出力しました！"); else showToast("出力エラー: " + res.message);
+                if(res.success) showToast("スプレッドシートに出力しました！", "success"); else showToast("出力エラー: " + res.message);
             } catch (e) { showToast("通信エラーが発生しました。"); console.error(e); }
         },
 
@@ -903,7 +922,6 @@
             }
         },
         
-        // ★教員の連番追加
         addTeacher() { 
             const count = state.teachers.length + 1;
             state.teachers.push({id:`t_${Date.now()}_${Math.floor(Math.random()*1000)}`, name:`教員${count}`, maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); 
@@ -947,6 +965,19 @@
                 state.editingAssignmentId = aId;
                 save(); render(); 
             }
+        },
+        
+        removeAssignmentWithAnim(tId, aId, elId) { 
+            const el = document.getElementById(elId); 
+            if(el) { 
+                el.classList.add('removing-item');
+                setTimeout(() => { 
+                    el.remove(); 
+                    this.removeAssignment(tId, aId); 
+                }, 300); 
+            } else { 
+                this.removeAssignment(tId, aId); 
+            } 
         },
         
         removeAssignment(tId, aId) { 
@@ -1006,18 +1037,18 @@
                     if(type==='rooms') state.rooms.push({id:Date.now()+Math.random(), name, capacity:1, ngTimes:{}});
                     if(type==='subjects'&&!state.subjects.find(s=>s.name===name)) state.subjects.push({name, stdHours:{1:0,2:0,3:0,4:0,5:0,6:0}});
                     if(type==='teachers') {
-                        state.teachers.push({id:`t_${Date.now()}_${Math.floor(Math.random()*1000)}`, name, maxHours:24, homeroom:'', ngTimes:{}, assignments:[]});
+                        const count = state.teachers.length + 1;
+                        state.teachers.push({id:`t_${Date.now()}_${Math.floor(Math.random()*1000)}`, name: name, maxHours:24, homeroom:'', ngTimes:{}, assignments:[]});
                     }
                     addedCount++;
                 }
             });
             document.getElementById('modal-overlay').classList.add('hidden'); render(); 
-            if(addedCount > 0) showToast(`${addedCount}件追加しました`);
+            if(addedCount > 0) showToast(`${addedCount}件追加しました`, "success");
         },
         closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
         exportData() { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_config.json"; a.click(); },
         
-        // ★インポート時の即時GAS同期
         importData() { 
             const i=document.createElement('input'); i.type='file'; 
             i.onchange=e=>{ 
@@ -1026,7 +1057,6 @@
                     Object.assign(state, JSON.parse(e.target.result)); 
                     currentStep=1; 
                     render(); 
-                    // 即時クラウド保存
                     fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveState', state: state }) })
                         .then(()=>showToast("読込完了＆クラウド同期成功", "success"))
                         .catch(err=>console.error('Import Sync Error:', err));
@@ -1038,7 +1068,6 @@
         
         addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', groupCount:document.getElementById('mg-groups').value||'4', teacherCount:document.getElementById('mg-teachers').value||'4', totalTeacherCount:document.getElementById('mg-total-teachers').value||'4', hours:document.getElementById('mg-hours').value||'4'}); render(); },
         
-        // ★上書きバグ修正
         copyTeacherSettings(tgtId, srcIdStr) { 
             if(!srcIdStr) { showToast("コピー元を選択してください"); return; } 
             const src = state.teachers.find(x => String(x.id) === String(srcIdStr)); 
@@ -1052,7 +1081,7 @@
                     a.isNew = true; 
                 });
                 save(); render(); 
-                showToast("設定をコピーしました"); 
+                showToast("設定をコピーしました", "success"); 
                 
                 setTimeout(() => {
                     tgt.assignments.forEach(a => a.isNew = false);
