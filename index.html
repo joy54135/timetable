@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 10.2 (GitHub Pages + High-Density UI Edition)
+  Version: 10.3 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 下部見切れ修正・ボタン位置最適化・Step9エラー画面改善
+  Description: 全修正統合版（ボタン位置、エラー画面、少人数算数、スクロールバグ修正）
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 10.2</title>
+    <title>Smart TimeTable - Ver 10.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
@@ -82,7 +82,7 @@
             </div>
             <div class="min-w-0 flex items-baseline gap-2">
                 <h1 class="text-xl font-black tracking-tighter text-slate-800 truncate leading-none">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.2 High-Density Edition</p>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.3 High-Density Edition</p>
             </div>
         </div>
         <div class="flex flex-row items-center gap-2 shrink-0">
@@ -191,10 +191,10 @@
         } catch(e) {}
     };
 
-    function save() { try { localStorage.setItem('tt_v102_data', JSON.stringify(state)); } catch(e) {} }
+    function save() { try { localStorage.setItem('tt_v103_data', JSON.stringify(state)); } catch(e) {} }
     function load() {
         try {
-            const s = localStorage.getItem('tt_v102_data');
+            const s = localStorage.getItem('tt_v103_data');
             if(s) { 
                 const p = JSON.parse(s);
                 if(!p.subjects || p.subjects.length < 10) return false;
@@ -494,6 +494,8 @@
                                             <label class="flex items-center gap-0.5 cursor-pointer border-l border-slate-200 pl-1.5"><input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isTT',this.checked)" class="w-3 h-3"><span class="text-[9px] font-bold text-slate-500">TT</span></label>
                                         </div>
                                         
+                                        <div class="w-full h-0 border-t-4 border-dashed border-slate-200 my-2 hidden lg:block"></div>
+                                        
                                         <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'room',this.value)" class="m3-input !p-1 !text-[10px] flex-1 min-w-[70px]">${roomOptions.replace(`value="${as.room}"`, `value="${as.room}" selected`)}</select>
                                         <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'fixedTime',this.value)" class="m3-input !p-1 !text-[10px] flex-[1.2] min-w-[70px] ${as.fixedTime==='am-priority'?'!bg-blue-50 !text-blue-700':(as.fixedTime?'!bg-amber-50 !text-amber-700':'')}">${timeOptions.replace(`value="${as.fixedTime||''}"`, `value="${as.fixedTime||''}" selected`)}</select>
                                     </div>
@@ -510,8 +512,9 @@
         el.innerHTML = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black">8. 少人数指導の設定</h2><p class="text-[10px] text-slate-500">学年全体や複数クラスを解体してのグループ展開設定</p></div>
         <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4 flex flex-wrap items-center gap-3 shrink-0 shadow-sm">
             <select id="mg-grade" class="m3-input !w-auto !py-1.5 !px-2"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}">${g}年</option>`).join('')}</select>
-            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">展開数</span><input id="mg-groups" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
-            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">教員数</span><input id="mg-teachers" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
+            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">同時展開数</span><input id="mg-groups" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none" onchange="document.getElementById('mg-teachers').value=this.value; document.getElementById('mg-total-teachers').value=this.value;"></div>
+            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200" title="1回の授業で同時に指導に入る教員の数"><span class="text-[10px] font-bold text-slate-400">同時教員数</span><input id="mg-teachers" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
+            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200" title="週の途中で担当が変わる場合など、関わる全教員数"><span class="text-[10px] font-bold text-slate-400">関わる全教員数</span><input id="mg-total-teachers" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
             <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">週時数</span><input id="mg-hours" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
             <button onclick="actions.addMathGroup()" class="m3-btn-primary !text-xs !py-1.5 !px-4 ml-auto">追加</button>
         </div>
@@ -521,7 +524,7 @@
                 <div class="bg-white border border-slate-200 p-3 rounded-lg shadow-sm flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-4">
                         <span class="bg-blue-100 text-blue-800 font-black text-xs px-2 py-1 rounded">${m.grade}年 算数</span>
-                        <span class="text-xs font-bold text-slate-700">${m.groupCount}展開/${m.teacherCount}名</span>
+                        <span class="text-xs font-bold text-slate-700">${m.groupCount}展開 / 同時${m.teacherCount}名 / 全${m.totalTeacherCount || m.teacherCount}名関与</span>
                         <span class="text-[10px] font-bold text-slate-500 border px-2 py-0.5 rounded bg-slate-50">週${m.hours}コマ</span>
                     </div>
                     <button onclick="state.mathGroups.splice(${idx},1);render()" class="text-slate-300 hover:text-rose-500 font-bold text-xs px-2">✕</button>
@@ -845,8 +848,8 @@
         closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
         exportData() { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_config.json"; a.click(); },
         importData() { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ Object.assign(state, JSON.parse(e.target.result)); currentStep=1; render(); } }; i.click(); },
-        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v102_data'); location.reload(); } },
-        addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', groupCount:document.getElementById('mg-count').value||'4'}); render(); },
+        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v103_data'); location.reload(); } },
+        addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', groupCount:document.getElementById('mg-groups').value||'4', teacherCount:document.getElementById('mg-teachers').value||'4', totalTeacherCount:document.getElementById('mg-total-teachers').value||'4', hours:document.getElementById('mg-hours').value||'4'}); render(); },
         copyTeacherSettings(targetId) {
             const srcId = document.getElementById('copy-src').value; if(!srcId) return;
             const src = state.teachers.find(x => x.id === parseInt(srcId)); const tgt = state.teachers.find(x => x.id === targetId);
