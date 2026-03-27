@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 10.5 (GitHub Pages + High-Density UI Edition)
+  Version: 10.6 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: ダブルタップ拡大完全防止・全入力欄に説明ツールチップを追加
+  Description: 上書きバグ修正、持ち時数表示追加、UI文言改善
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 10.5</title>
+    <title>Smart TimeTable - Ver 10.6</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
@@ -81,7 +81,7 @@
             </div>
             <div class="min-w-0 flex items-baseline gap-2">
                 <h1 class="text-xl font-black tracking-tighter text-slate-800 truncate leading-none">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.5 Full Tooltips</p>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.6 High-Density Edition</p>
             </div>
         </div>
         <div class="flex flex-row items-center gap-2 shrink-0">
@@ -121,7 +121,6 @@
         const now = (new Date()).getTime();
         if (now - lastTouchEnd <= 300) {
             const tagName = event.target.tagName.toLowerCase();
-            // 文字入力が必要なタグ以外はズーム防止（ボタン等は連打しても拡大しない）
             if (tagName !== 'input' && tagName !== 'textarea' && tagName !== 'select') {
                 event.preventDefault();
             }
@@ -199,10 +198,10 @@
         } catch(e) {}
     };
 
-    function save() { try { localStorage.setItem('tt_v105_data', JSON.stringify(state)); } catch(e) {} }
+    function save() { try { localStorage.setItem('tt_v106_data', JSON.stringify(state)); } catch(e) {} }
     function load() {
         try {
-            const s = localStorage.getItem('tt_v105_data');
+            const s = localStorage.getItem('tt_v106_data');
             if(s) { 
                 const p = JSON.parse(s);
                 if(!p.subjects || p.subjects.length < 10) return false;
@@ -441,7 +440,6 @@
         let hrOptions = `<option value="">専科等</option>`;
         [1,2,3,4,5,6].forEach(g => { for(let c=1; c<=state.grades[g]; c++) hrOptions += `<option value="${g}-${c}">${g}年${c}組</option>`; });
         let roomOptions = `<option value="通常教室">通常教室</option>` + state.rooms.map(r => `<option value="${r.name}">${r.name}</option>`).join('');
-        let subOptions = `<option value="">-科目-</option>` + state.subjects.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
         
         let timeOptions = `<option value="">自動</option><option value="am-priority">午前</option>`;
         DAYS.forEach(d => PERIODS.forEach(p => timeOptions += `<option value="${d}-${p}">${d}${p}</option>`));
@@ -487,6 +485,9 @@
                         <div class="shrink-0 flex flex-col items-center">
                             <span class="text-[10px] font-bold text-slate-400 mb-1">✕=不可時間</span>
                             ${getGridHtml(teacher.ngTimes, state.globalBlocks, `actions.toggleTeacherNG(${teacher.id}, '__KEY__')`, 'teacher')}
+                            <div class="flex items-center justify-center bg-blue-50 text-blue-800 rounded-lg p-2 mt-4 font-black text-sm border border-blue-200 shadow-sm w-full" title="現在の担当コマ数 / 持ち時数上限">
+                                持ち時数： ${teacher.assignments?.reduce((s,a)=>s+(a.isTT?0:(a.isJoint?a.hours:(a.target.includes('年全体')?a.hours*state.grades[a.target.charAt(0)]:a.target.split(',').length * a.hours))),0)||0} / ${teacher.maxHours||24}
+                            </div>
                         </div>
                         
                         <div class="flex-1 flex flex-col overflow-hidden min-h-0">
@@ -503,9 +504,9 @@
                                             ${state.subjects.filter(s => s.name === as.subject || !teacher.assignments.map(a=>a.subject).includes(s.name)).map(s=>`<option value="${s.name}" ${s.name===as.subject?'selected':''}>${s.name}</option>`).join('')}
                                         </select>
                                         
-                                        <div class="flex items-center gap-1 flex-[1.5] min-w-[100px]" title="授業を行う対象クラスを選択">
+                                        <div class="flex items-center gap-1 flex-[1.5] min-w-[130px]" title="授業を行う対象クラスを選択">
                                             <select onchange="if(this.value==='custom') actions.openCustomTargetModal(${teacher.id},${aIdx}); else actions.updateAssignment(${teacher.id},${aIdx},'target',this.value)" class="m3-input !p-1 !text-xs w-full">${actions.getTargetOptions(as.target)}</select>
-                                            <button onclick="actions.openCustomTargetModal(${teacher.id},${aIdx})" class="text-[9px] bg-white border border-blue-300 text-blue-600 px-1.5 py-1 rounded hover:bg-blue-50 shadow-sm" title="複数クラス選択">＋</button>
+                                            <button onclick="actions.openCustomTargetModal(${teacher.id},${aIdx})" class="text-[9px] font-bold bg-blue-50 border border-blue-200 text-blue-700 px-2 py-1 rounded hover:bg-blue-100 shadow-sm shrink-0" title="複数クラス選択">＋複数</button>
                                         </div>
                                         
                                         <div class="flex items-center bg-white border border-slate-200 rounded px-1 py-0.5 shrink-0" title="この授業を週に何コマ行うか設定">
@@ -513,9 +514,9 @@
                                             <span class="text-[8px] font-bold text-slate-400">コマ</span>
                                         </div>
                                         
-                                        <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded px-1.5 py-1 shrink-0">
-                                            <label class="flex items-center gap-0.5 cursor-pointer" title="複数クラスを合同で教える場合はチェック"><input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isJoint',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-500">同</span></label>
-                                            <label class="flex items-center gap-0.5 cursor-pointer border-l border-slate-200 pl-1.5" title="副担当(TT)として入る場合はチェック(持ち時数にはカウントされません)"><input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isTT',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-500">TT</span></label>
+                                        <div class="flex items-center gap-2 bg-white border border-slate-200 rounded px-2 py-1 shrink-0">
+                                            <label class="flex items-center gap-1 cursor-pointer" title="複数クラスを合同で教える場合はチェック"><input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isJoint',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-600">合同</span></label>
+                                            <label class="flex items-center gap-1 cursor-pointer border-l border-slate-200 pl-2" title="副担当(TT)として入る場合はチェック(持ち時数にはカウントされません)"><input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isTT',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-600">副担当(TT)</span></label>
                                         </div>
                                         
                                         <div class="w-full h-0 border-t-4 border-dashed border-slate-200 my-2 hidden lg:block"></div>
@@ -880,13 +881,15 @@
         closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
         exportData() { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_config.json"; a.click(); },
         importData() { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ Object.assign(state, JSON.parse(e.target.result)); currentStep=1; render(); } }; i.click(); },
-        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v105_data'); location.reload(); } },
+        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v106_data'); location.reload(); } },
         addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', subject:document.getElementById('mg-sub').value||'算数', groupCount:document.getElementById('mg-groups').value||'4', teacherCount:document.getElementById('mg-teachers').value||'4', totalTeacherCount:document.getElementById('mg-total-teachers').value||'4', hours:document.getElementById('mg-hours').value||'4'}); render(); },
         copyTeacherSettings(targetId) {
-            const srcId = document.getElementById('copy-src').value; if(!srcId) return;
-            const src = state.teachers.find(x => x.id === parseInt(srcId)); const tgt = state.teachers.find(x => x.id === targetId);
-            tgt.maxHours = src.maxHours; tgt.ngTimes = JSON.parse(JSON.stringify(src.ngTimes || {})); tgt.assignments = JSON.parse(JSON.stringify(src.assignments || []));
-            showToast("設定をコピーしました"); render();
+            const srcId = document.getElementById('copy-src').value; if(!srcId) { showToast("コピー元を選択してください"); return; }
+            const src = state.teachers.find(x => String(x.id) === srcId); const tgt = state.teachers.find(x => x.id === targetId);
+            if(src && tgt) {
+                tgt.maxHours = src.maxHours; tgt.ngTimes = JSON.parse(JSON.stringify(src.ngTimes || {})); tgt.assignments = JSON.parse(JSON.stringify(src.assignments || []));
+                showToast("設定をコピーしました"); render();
+            }
         },
         openCustomTargetModal(tId, aIdx) {
             const ov = document.getElementById('modal-overlay'); const bd = document.getElementById('modal-body'); ov.classList.remove('hidden');
