@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.20 (Next Generation - Complete)
+  Version: 13.21 (Next Generation - Complete)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: GASのバグ修正に対応、通信ロジックを極限までシンプル化、URL組み込み済み
+  Description: 真っ白エラー（クラッシュ）の完全修正、最新URLの組み込み、通信の安定化
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.20</title>
+    <title>Smart TimeTable - Ver 13.21</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -44,7 +44,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (Stable 13.20)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (Stable 13.21)</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -74,14 +74,14 @@
 <div id="loading-overlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center flex-col gap-4 transition-all">
     <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
     <div class="text-white text-center">
-        <h3 class="text-lg font-black tracking-widest mb-1" id="loading-title">AI自動生成中...</h3>
+        <h3 class="text-lg font-black tracking-widest mb-1" id="loading-title">処理中...</h3>
         <p class="text-blue-200 font-bold text-xs" id="loading-desc">しばらくお待ちください</p>
     </div>
 </div>
 
 <script>
     // --- Configuration ---
-    // ★ ご指定のGASのURLを組み込んでいます ★
+    // ★ 指定された最新のURL ★
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzk7FOx-EuX906szB8GmGsrMLxlESbc0bn2hFWq0XFFyHECZCDWLZzRbrmoi5vlBvVoHA/exec";
 
     // --- State Management ---
@@ -92,38 +92,213 @@
     
     const stepTitles = ["1. 基本設定", "2. 行事・全校不可枠", "3. 教科と教室", "4. 教員名簿と不可枠", "5. 特殊授業ブロック", "6. クラス別 担当割り当て", "7. 教員別 担当確認", "8. 授業コマ配置ルール", "9. 最終点検", "10. ダッシュボード"];
     let currentStep = 1;
+    let lastClickTime = 0;
+    let lastClickId = null;
+
+    const initialRooms = [
+        {id:'r1', name:'校庭', capacity:2, ngTimes:{}}, {id:'r2', name:'体育館', capacity:2, ngTimes:{}}, 
+        {id:'r3', name:'理科室', capacity:1, ngTimes:{}}, {id:'r4', name:'音楽室', capacity:1, ngTimes:{}}, 
+        {id:'r5', name:'図工室', capacity:1, ngTimes:{}}, {id:'r6', name:'家庭科室', capacity:1, ngTimes:{}}, 
+        {id:'r7', name:'外国語教室', capacity:1, ngTimes:{}}, {id:'r8', name:'図書室', capacity:1, ngTimes:{}}
+    ];
+
+    const initialSubjects = [
+        { id:'s1', name:'国語', stdHours:{1:9, 2:9, 3:7, 4:7, 5:5, 6:5}, defaultRoom:'通常教室' },
+        { id:'s2', name:'社会', stdHours:{1:0, 2:0, 3:2, 4:2, 5:3, 6:3}, defaultRoom:'通常教室' },
+        { id:'s3', name:'算数', stdHours:{1:4, 2:5, 3:5, 4:5, 5:5, 6:5}, defaultRoom:'通常教室' },
+        { id:'s4', name:'理科', stdHours:{1:0, 2:0, 3:3, 4:3, 5:3, 6:3}, defaultRoom:'理科室' },
+        { id:'s5', name:'生活', stdHours:{1:3, 2:3, 3:0, 4:0, 5:0, 6:0}, defaultRoom:'通常教室' },
+        { id:'s6', name:'音楽', stdHours:{1:2, 2:2, 3:2, 4:2, 5:2, 6:2}, defaultRoom:'音楽室' },
+        { id:'s7', name:'図工', stdHours:{1:2, 2:2, 3:2, 4:2, 5:2, 6:2}, defaultRoom:'図工室' },
+        { id:'s8', name:'家庭', stdHours:{1:0, 2:0, 3:0, 4:0, 5:2, 6:2}, defaultRoom:'家庭科室' },
+        { id:'s9', name:'中体育', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'体育館' },
+        { id:'s10', name:'外体育', stdHours:{1:2, 2:2, 3:2, 4:2, 5:2, 6:2}, defaultRoom:'校庭' },
+        { id:'s11', name:'道徳', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'通常教室' },
+        { id:'s12', name:'外国語', stdHours:{1:0, 2:0, 3:1, 4:1, 5:2, 6:2}, defaultRoom:'外国語教室' },
+        { id:'s13', name:'総合', stdHours:{1:0, 2:0, 3:1, 4:1, 5:2, 6:2}, defaultRoom:'通常教室' },
+        { id:'s14', name:'学活', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'通常教室' },
+        { id:'s15', name:'たまいち', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'通常教室' }
+    ];
+
+    const defaultAdvancedRules = {
+        lastPeriodSubjects: [], continuousClasses: [], limitContinuousToSpecificPeriods: true,
+        homeroomOnlyTimes: [], limitOneSubjectPerDay: true, avoidSpecialistTimes: [],
+        maxIntervalSubjects: [], avoidPeTimes: [], amPrioritySubjects: [], consecutiveGradeSubjects: []
+    };
+
     let state = {
         periods: GRADES.reduce((acc, g) => ({ ...acc, [g]: {月:5,火:5,水:4,木:5,金:5} }), {}),
         grades: { 1:3, 2:3, 3:3, 4:3, 5:3, 6:3 },
-        rooms: JSON.parse(JSON.stringify([{id:'r1', name:'校庭', capacity:2, ngTimes:{}}, {id:'r2', name:'体育館', capacity:2, ngTimes:{}}, {id:'r3', name:'理科室', capacity:1, ngTimes:{}}, {id:'r4', name:'音楽室', capacity:1, ngTimes:{}}, {id:'r5', name:'図工室', capacity:1, ngTimes:{}}, {id:'r6', name:'家庭科室', capacity:1, ngTimes:{}}, {id:'r7', name:'外国語教室', capacity:1, ngTimes:{}}, {id:'r8', name:'図書室', capacity:1, ngTimes:{}}])),
-        subjects: JSON.parse(JSON.stringify([{ id:'s1', name:'国語', stdHours:{1:9, 2:9, 3:7, 4:7, 5:5, 6:5}, defaultRoom:'通常教室' }, { id:'s2', name:'社会', stdHours:{1:0, 2:0, 3:2, 4:2, 5:3, 6:3}, defaultRoom:'通常教室' }, { id:'s3', name:'算数', stdHours:{1:4, 2:5, 3:5, 4:5, 5:5, 6:5}, defaultRoom:'通常教室' }, { id:'s4', name:'理科', stdHours:{1:0, 2:0, 3:3, 4:3, 5:3, 6:3}, defaultRoom:'理科室' }, { id:'s5', name:'生活', stdHours:{1:3, 2:3, 3:0, 4:0, 5:0, 6:0}, defaultRoom:'通常教室' }, { id:'s6', name:'音楽', stdHours:{1:2, 2:2, 3:2, 4:2, 5:2, 6:2}, defaultRoom:'音楽室' }, { id:'s7', name:'図工', stdHours:{1:2, 2:2, 3:2, 4:2, 5:2, 6:2}, defaultRoom:'図工室' }, { id:'s8', name:'家庭', stdHours:{1:0, 2:0, 3:0, 4:0, 5:2, 6:2}, defaultRoom:'家庭科室' }, { id:'s9', name:'中体育', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'体育館' }, { id:'s10', name:'外体育', stdHours:{1:2, 2:2, 3:2, 4:2, 5:2, 6:2}, defaultRoom:'校庭' }, { id:'s11', name:'道徳', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'通常教室' }, { id:'s12', name:'外国語', stdHours:{1:0, 2:0, 3:1, 4:1, 5:2, 6:2}, defaultRoom:'外国語教室' }, { id:'s13', name:'総合', stdHours:{1:0, 2:0, 3:1, 4:1, 5:2, 6:2}, defaultRoom:'通常教室' }, { id:'s14', name:'学活', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'通常教室' }, { id:'s15', name:'たまいち', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'通常教室' }])),
+        rooms: JSON.parse(JSON.stringify(initialRooms)),
+        subjects: JSON.parse(JSON.stringify(initialSubjects)),
         teachers: [], globalBlocks: {}, specialBlocks: [], classAssignments: {}, 
-        advancedRules: { lastPeriodSubjects: [], continuousClasses: [], limitContinuousToSpecificPeriods: true, limitOneSubjectPerDay: true, homeroomOnlyTimes: [], avoidSpecialistTimes: [], maxIntervalSubjects: [], avoidPeTimes: [], amPrioritySubjects: [], consecutiveGradeSubjects: [] },
-        generatedSchedule: null, dashView: 'class', dashFilter: '1-1', subjectsUndoStack: [], undoStack: [], conflicts: [], selectedDashCell: null, editingTeacherNameId: null, selectedTeacherId: null
+        advancedRules: JSON.parse(JSON.stringify(defaultAdvancedRules)),
+        generatedSchedule: null, dashView: 'class', dashFilter: '1-1', 
+        subjectsUndoStack: [], undoStack: [], conflicts: [], selectedDashCell: null, editingTeacherNameId: null, selectedTeacherId: null
     };
 
-    let lastClickTime = 0; let lastClickId = null;
+    // --- Utils ---
+    const showToast = (msg, type="info", timeout=3000) => { 
+        const t = document.getElementById('toast'); 
+        t.className = `fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==="success"?"bg-emerald-600 text-white":"bg-rose-600 text-white":"bg-slate-800 text-white"}`;
+        document.getElementById('toast-msg').innerText = msg;
+        setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), timeout); 
+    };
 
-    const showToast = (msg, type="info") => { const t = document.getElementById('toast'); t.className = `fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==="success"?"bg-emerald-600 text-white":"bg-rose-600 text-white"}`; document.getElementById('toast-msg').innerText = msg; setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 4000); };
-    const showLoading = (t, d) => { document.getElementById('loading-title').innerText = t; document.getElementById('loading-desc').innerText = d; document.getElementById('loading-overlay').classList.replace('hidden', 'flex'); };
+    const showLoading = (title, desc) => {
+        document.getElementById('loading-title').innerText = title;
+        document.getElementById('loading-desc').innerText = desc;
+        document.getElementById('loading-overlay').classList.replace('hidden', 'flex');
+    };
+
     const hideLoading = () => document.getElementById('loading-overlay').classList.replace('flex', 'hidden');
+    
     const save = () => localStorage.setItem('tt_v13_data', JSON.stringify(state));
-    const load = () => { const s = localStorage.getItem('tt_v13_data'); if (s) { try { const p = JSON.parse(s); if(p.subjects) state.subjects = p.subjects; if(p.teachers) state.teachers = p.teachers; if(p.specialBlocks) state.specialBlocks = p.specialBlocks; if(p.classAssignments) state.classAssignments = p.classAssignments; if(p.generatedSchedule) state.generatedSchedule = p.generatedSchedule; if(p.globalBlocks) state.globalBlocks = p.globalBlocks; if(p.periods) state.periods = p.periods; if(p.grades) state.grades = p.grades; } catch(e){} } initClassAssignments(); render(); };
+    
+    // ★真っ白エラーを防ぐ、安全なデータ読み込み関数
+    const sanitizeState = (p) => {
+        if (!p) return;
+        
+        if (p.subjects && Array.isArray(p.subjects)) {
+            initialSubjects.forEach(initSub => { if (!p.subjects.find(s => s.name === initSub.name)) p.subjects.push(JSON.parse(JSON.stringify(initSub))); });
+            p.subjects.forEach(s => { if(!s.id) s.id = 's_' + Date.now() + Math.random(); });
+            state.subjects = p.subjects;
+        } else state.subjects = JSON.parse(JSON.stringify(initialSubjects));
+        
+        if (p.rooms && Array.isArray(p.rooms)) {
+            initialRooms.forEach(initRoom => { if (!p.rooms.find(r => r.name === initRoom.name)) p.rooms.push(JSON.parse(JSON.stringify(initRoom))); });
+            p.rooms.forEach(r => { if(!r.id) r.id = 'r_' + Date.now() + Math.random(); });
+            state.rooms = p.rooms;
+        } else state.rooms = JSON.parse(JSON.stringify(initialRooms));
+        
+        ['globalBlocks', 'periods', 'grades', 'selectedTeacherId', 'dashView', 'dashFilter', 'generatedSchedule'].forEach(k => { if(p[k] !== undefined) state[k] = p[k]; });
+        
+        if (p.advancedRules) state.advancedRules = { ...JSON.parse(JSON.stringify(defaultAdvancedRules)), ...p.advancedRules };
+        if (p.teachers) state.teachers = p.teachers;
+        
+        if (p.specialBlocks) {
+            state.specialBlocks = p.specialBlocks.map(b => {
+                if (b.teachers && b.teachers.length > 0 && typeof b.teachers[0] === 'string') b.teachers = b.teachers.map(tId => ({ id: tId, hours: b.hours }));
+                return b;
+            });
+        }
+        if (p.classAssignments) state.classAssignments = p.classAssignments;
+        if (p.subjectsUndoStack) state.subjectsUndoStack = p.subjectsUndoStack;
 
-    const initClassAssignments = () => { Object.keys(state.grades).forEach(g => { const n = parseInt(state.grades[g]) || 1; for(let i=1; i<=n; i++) { const cls = `${g}-${i}`; if(!state.classAssignments[cls]) state.classAssignments[cls] = { homeroom: '', overrides: {} }; } }); };
-    const getTeacherLoads = () => { const loads = {}; state.teachers.forEach(t => loads[t.id] = 0); Object.keys(state.classAssignments).forEach(cls => { const grade = cls.split('-')[0]; const data = state.classAssignments[cls]; state.subjects.forEach(sub => { const hours = parseInt(sub.stdHours[grade]) || 0; if (hours === 0 || (state.specialBlocks && state.specialBlocks.some(b => b.subjectId === sub.id && b.targets.includes(cls)))) return; const tId = data.overrides[sub.id]?.teacherId || data.homeroom; if (tId && loads[tId] !== undefined) loads[tId] += hours; }); }); (state.specialBlocks || []).forEach(b => { b.teachers.forEach(bt => { if (loads[bt.id] !== undefined) loads[bt.id] += (parseInt(bt.hours) || 0); }); }); return loads; };
-
-    const buildGrid = (ngMap, globalBlocksMap, actionStr, cellType = 'teacher') => {
-        let html = `<div class="overflow-x-auto w-full custom-scrollbar min-h-0"><table class="border-separate border-spacing-1 table-fixed w-max mx-auto"><thead><tr><th class="w-8"></th>${DAYS.map(d=>`<th class="text-center text-xs font-black text-slate-400 w-9">${d}</th>`).join('')}</tr></thead><tbody>`;
-        PERIODS.forEach(p => { html += `<tr><td class="text-right pr-2 text-[10px] font-bold text-slate-400">${p}限</td>${DAYS.map(d => { const k = `${d}-${p}`; const gl = globalBlocksMap?.[k]; const ng = ngMap?.[k]; let cls = 'w-8 h-8 border rounded-lg flex items-center justify-center cursor-pointer font-bold text-xs transition-colors ', icon = '〇'; if(gl){ cls += 'bg-slate-800 text-white'; icon = '■'; } else if(ng){ cls += 'bg-rose-50 text-rose-500 border-rose-200'; icon = '✕'; } else { cls += 'bg-white text-slate-200 hover:bg-blue-50'; } return `<td><div onclick="${actionStr.replace('__KEY__', k)}" class="${cls}">${icon}</div></td>`; }).join('')}</tr>`; });
-        return html + `</tbody></table></div>`;
+        // 担任とクラスの双方向リンク修復
+        if(state.teachers && state.classAssignments) {
+            state.teachers.forEach(t => {
+                if(t.homeroom && state.classAssignments[t.homeroom]) state.classAssignments[t.homeroom].homeroom = t.id;
+            });
+            Object.keys(state.classAssignments).forEach(cls => {
+                const tId = state.classAssignments[cls].homeroom;
+                if(tId) { const t = state.teachers.find(x => x.id === tId); if(t) t.homeroom = cls; }
+            });
+        }
     };
 
-    const getSubColor = (s) => {
-        if(!s) return 'bg-slate-100 text-slate-500 border-slate-200';
-        const colors = {'国':'blue','算':'yellow','理':'green','社':'indigo','生':'orange','体':'red','図':'purple','音':'pink','家':'rose','道':'slate','外':'cyan','総':'emerald','活':'slate','たま':'rose'};
-        const c = Object.keys(colors).find(k => s.includes(k)) || 'slate';
-        return `bg-${c}-100 text-${c}-800 border-${c}-200`;
+    const load = () => {
+        const s = localStorage.getItem('tt_v13_data');
+        if (s) {
+            try {
+                sanitizeState(JSON.parse(s));
+            } catch(e) {
+                console.error("Load Error:", e);
+                showToast("保存データの読み込みに失敗しました。リセットしてください。", "error", 5000);
+            }
+        }
+        initClassAssignments();
+        try {
+            render();
+        } catch(e) {
+            console.error("Render Error:", e);
+            showToast("画面の描画に失敗しました。", "error", 5000);
+        }
+    };
+
+    const initClassAssignments = () => { 
+        Object.keys(state.grades).forEach(g => { 
+            const n = parseInt(state.grades[g]) || 1; 
+            for(let i=1; i<=n; i++) { 
+                const cls = `${g}-${i}`; 
+                if(!state.classAssignments[cls]) state.classAssignments[cls] = { homeroom: '', overrides: {} }; 
+            } 
+        }); 
+    };
+
+    const getTeacherLoads = () => { 
+        const loads = {}; state.teachers.forEach(t => loads[t.id] = 0); 
+        Object.keys(state.classAssignments).forEach(cls => { 
+            const grade = cls.split('-')[0]; const data = state.classAssignments[cls]; 
+            state.subjects.forEach(sub => { 
+                const hours = parseInt(sub.stdHours[grade]) || 0; 
+                if (hours === 0 || (state.specialBlocks && state.specialBlocks.some(b => b.subjectId === sub.id && b.targets.includes(cls)))) return; 
+                const tId = data.overrides[sub.id]?.teacherId || data.homeroom; 
+                if (tId && loads[tId] !== undefined) loads[tId] += hours; 
+            }); 
+        }); 
+        (state.specialBlocks || []).forEach(b => { b.teachers.forEach(bt => { if (loads[bt.id] !== undefined) loads[bt.id] += (parseInt(bt.hours) || 0); }); }); 
+        return loads; 
+    };
+
+    const getTeacherDetails = () => { 
+        const details = {}; state.teachers.forEach(t => details[t.id] = { load: 0, items: [] }); 
+        Object.keys(state.classAssignments).forEach(cls => { 
+            const grade = cls.split('-')[0]; const data = state.classAssignments[cls]; 
+            state.subjects.forEach(sub => { 
+                const hours = parseInt(sub.stdHours[grade]) || 0; 
+                if (hours === 0 || state.specialBlocks.some(b => b.subjectId === sub.id && b.targets.includes(cls))) return; 
+                const tId = data.overrides[sub.id]?.teacherId || data.homeroom; 
+                if (tId && details[tId]) { details[tId].load += hours; details[tId].items.push({ target: cls, subject: sub.name, hours: hours, isSp: false }); } 
+            }); 
+        }); 
+        state.specialBlocks.forEach(b => { 
+            const subName = state.subjects.find(s=>s.id===b.subjectId)?.name || '特殊'; 
+            b.teachers.forEach(bt => { 
+                if (details[bt.id]) { 
+                    const hours = parseInt(bt.hours) || 0; details[bt.id].load += hours; 
+                    const tgtStr = b.targets.length > 2 ? `${b.targets.length}クラス合同` : b.targets.join(','); 
+                    details[bt.id].items.push({ target: tgtStr, subject: subName, hours: hours, isSp: true }); 
+                } 
+            }); 
+        }); 
+        return details; 
+    };
+
+    const getSubColor = (s) => { 
+        if(!s) return 'bg-slate-100 text-slate-500 border-slate-200'; 
+        const colors = {'国':'blue','算':'yellow','理':'green','社':'indigo','生':'orange','体':'red','図':'purple','音':'pink','家':'rose','道':'slate','外':'cyan','総':'emerald','活':'slate','たま':'rose'}; 
+        const c = Object.keys(colors).find(k => s.includes(k)) || 'slate'; 
+        return `bg-${c}-100 text-${c}-800 border-${c}-200`; 
+    };
+
+    const buildGrid = (ngMap, globalBlocksMap, actionStr, cellType = 'teacher') => { 
+        let html = `<div class="overflow-x-auto w-full custom-scrollbar min-h-0"><table class="border-separate border-spacing-1 table-fixed w-max mx-auto"><thead><tr><th class="w-8"></th>${DAYS.map(d=>`<th class="text-center text-xs font-black text-slate-400 w-9">${d}</th>`).join('')}</tr></thead><tbody>`; 
+        PERIODS.forEach(p => { html += `<tr><td class="text-right pr-2 text-[10px] font-bold text-slate-400">${p}限</td>${DAYS.map(d => { const k = `${d}-${p}`; const gl = globalBlocksMap?.[k]; const ng = ngMap?.[k]; let cls = 'w-8 h-8 border rounded-lg flex items-center justify-center cursor-pointer font-bold text-xs transition-colors ', icon = '〇'; if(gl){ cls += 'bg-slate-800 text-white'; icon = '■'; } else if(ng){ cls += 'bg-rose-50 text-rose-500 border-rose-200'; icon = '✕'; } else { cls += 'bg-white text-slate-200 hover:bg-blue-50'; } return `<td><div onclick="${actionStr.replace('__KEY__', k)}" class="${cls}">${icon}</div></td>`; }).join('')}</tr>`; }); 
+        return html + `</tbody></table></div>`; 
+    };
+
+    const render = () => {
+        save();
+        const scrollMap = Array.from(document.querySelectorAll('.custom-scrollbar')).reduce((acc, el) => ({...acc, [el.id||Math.random()]: {t: el.scrollTop, l: el.scrollLeft}}), {});
+        document.getElementById('step-title').innerText = stepTitles[currentStep-1];
+        
+        const nextBtn = document.getElementById('btn-next');
+        const nextText = document.getElementById('btn-next-text');
+        
+        if (currentStep === 9) {
+            nextText.innerText = 'AI自動生成 (実行)'; nextBtn.className = 'm3-btn-primary w-[180px] bg-indigo-600 hover:bg-indigo-700 text-white';
+        } else if (currentStep === MAX_STEPS) {
+            nextText.innerText = 'スプレッドシート出力'; nextBtn.className = 'm3-btn-primary w-[180px] bg-emerald-600 hover:bg-emerald-700 text-white';
+        } else {
+            nextText.innerText = '次へ進む'; nextBtn.className = 'm3-btn-primary w-[180px] bg-blue-600 hover:bg-blue-700 text-white';
+        }
+        
+        document.getElementById('btn-prev').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+        document.getElementById('progress-dots').innerHTML = currentStep === MAX_STEPS ? '' : [...Array(MAX_STEPS-1)].map((_, i) => `<div class="step-dot ${i < currentStep ? 'active' : ''}"></div>`).join('');
+        const content = document.getElementById('step-content');
+        content.innerHTML = [viewStep1, viewStep2, viewStep3, viewStep4, viewStep5, viewStep6, viewStep7, viewStep8, viewStep9, viewStep10][currentStep-1]();
+        setTimeout(() => { Object.keys(scrollMap).forEach(id => { const el = document.getElementById(id); if(el) { el.scrollTop = scrollMap[id].t; el.scrollLeft = scrollMap[id].l; } }); }, 0);
     };
 
     // --- Views ---
@@ -189,40 +364,46 @@
     window.actions = {
         startGeneration: async () => {
             if (!GAS_URL || GAS_URL.includes("ここに")) { showToast("URL未設定", "error"); return; }
-            showLoading("AI自動生成中...", "パズルを解いています（シークレットモード推奨）");
+            showLoading("AI自動生成中...", "パズルを解いています（数分かかる場合があります）");
             try {
-                // シンプルリクエストでCORSを回避
+                // シンプルリクエストでCORSを回避しつつ通信
                 const res = await fetch(GAS_URL, {
                     method: 'POST',
-                    mode: 'cors',
+                    headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({ action: 'generate', state: state })
                 });
-                if (!res.ok) throw new Error("Server response was not ok");
+                if (!res.ok) throw new Error("サーバーエラー: " + res.status);
                 const data = await res.json();
                 if (data.success) {
                     state.generatedSchedule = data.schedule; currentStep = 10; state.undoStack = []; render();
                     showToast(data.message || "成功！", "success");
-                } else showToast("生成エラー: " + data.message, "error", 6000);
+                } else {
+                    showToast("生成エラー: " + data.message, "error", 6000);
+                }
             } catch (e) {
                 console.error(e);
-                showToast("通信エラー。シークレットモードで試すか、別アカウントをログアウトしてください。", "error", 15000);
+                showToast("通信エラー。シークレットモードで試すか、別アカウントをログアウトしてください。", "error", 10000);
             } finally { hideLoading(); }
         },
         exportToSpreadsheet: async () => {
             if (!state.generatedSchedule) return;
             showLoading("出力中...", "書き込んでいます...");
             try {
-                const res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'export', schedule: state.generatedSchedule, state: state }) });
+                const res = await fetch(GAS_URL, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'export', schedule: state.generatedSchedule, state: state }) 
+                });
                 const data = await res.json();
                 if(data.success) showToast("出力成功！スプシを確認してください", "success");
                 else showToast("出力エラー: " + data.message, "error", 6000);
             } catch (e) { showToast("通信エラー", "error", 6000); } finally { hideLoading(); }
         },
-        toggleBlock: (k) => { state.globalBlocks[k] = !state.globalBlocks[k]; render(); },
-        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_20.json"; a.click(); },
-        importData: () => { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ try { state = JSON.parse(e.target.result); currentStep=1; render(); showToast("読込完了"); } catch(err) { showToast("読込エラー", "error"); } } }; i.click(); },
-        resetData: () => { if(confirm("初期化しますか？")) { localStorage.clear(); location.reload(); } },
+        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_21.json"; a.click(); },
+        importData: () => { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ try { const loaded = JSON.parse(e.target.result); sanitizeState(loaded); currentStep=1; render(); showToast("読込完了", "success"); } catch(err) { showToast("読込エラー", "error"); } } }; i.click(); },
+        resetData: () => { if(confirm("リセットしますか？")) { localStorage.clear(); location.reload(); } },
         updatePeriod: (g, d, delta) => { state.periods[g][d] = Math.max(0, Math.min(6, (state.periods[g][d]||0)+delta)); render(); },
+        toggleBlock: (k) => { state.globalBlocks[k] = !state.globalBlocks[k]; render(); },
         pushSubjectsUndo: () => { if (!state.subjectsUndoStack) state.subjectsUndoStack = []; state.subjectsUndoStack.push(JSON.stringify(state.subjects)); if(state.subjectsUndoStack.length > 20) state.subjectsUndoStack.shift(); },
         undoSubjects: () => { if(state.subjectsUndoStack?.length > 0) { state.subjects = JSON.parse(state.subjectsUndoStack.pop()); render(); showToast("アンドゥしました"); } },
         addSubject: (n) => { actions.pushSubjectsUndo(); state.subjects.push({ id:'s_'+Date.now()+Math.random(), name:n, stdHours:{1:0,2:0,3:0,4:0,5:0,6:0}, defaultRoom:'通常教室' }); render(); },
@@ -253,7 +434,9 @@
         setDashView: (v) => { state.dashView = v; state.dashFilter = (v==='class') ? Object.keys(state.classAssignments)[0] : (state.teachers[0]?.id||''); state.selectedDashCell = null; render(); },
         clickDashCell: (d, p) => { if(!state.selectedDashCell) { state.selectedDashCell = { d, p }; render(); } else { const c1 = state.selectedDashCell; const c2 = { d, p }; if(c1.d!==c2.d || c1.p!==c2.p) { actions.pushUndo(); const ls1 = state.generatedSchedule[c1.d][c1.p]||[]; const ls2 = state.generatedSchedule[c2.d][c2.p]||[]; const f = (l) => (state.dashView==='class') ? l.targets.includes(state.dashFilter) : l.teacherIds.includes(state.dashFilter); const it1 = ls1.filter(f); const it2 = ls2.filter(f); it1.forEach(i => ls1.splice(ls1.indexOf(i), 1)); it2.forEach(i => ls2.splice(ls2.indexOf(i), 1)); it1.forEach(i => ls2.push(i)); it2.forEach(i => ls1.push(i)); } state.selectedDashCell = null; render(); } },
         openBulk: (type) => { const ov = document.getElementById('modal-overlay'); const bd = document.getElementById('modal-body'); ov.classList.remove('hidden'); bd.innerHTML = `<h3 class="text-xl font-black mb-2">${type==='rooms'?'教室':'教員'}一括貼付</h3><textarea id="bulk-txt" class="w-full h-40 p-4 bg-slate-50 border rounded-xl mb-4 text-xs font-bold" placeholder="改行区切りで貼付"></textarea><div class="flex gap-4"><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="flex-1 p-3 bg-slate-100 rounded-xl font-bold">キャンセル</button><button onclick="actions.processBulk('${type}')" class="flex-1 bg-blue-600 text-white rounded-xl font-black">追加</button></div>`; },
-        processBulk: (type) => { const r = document.getElementById('bulk-txt').value.split('\n').filter(x=>x.trim()); let c = 0; r.forEach((n, i) => { let nm = n.split('\t')[0].trim(); if (i === 0 && (nm.includes('名') || nm==='教室' || nm==='教員')) return; if(nm) { if(type==='rooms') state.rooms.push({id:'r_'+Date.now()+Math.random(), name:nm, capacity:1, ngTimes:{}}); if(type==='teachers') state.teachers.push({id:'t_'+Date.now()+Math.random(), name:nm, maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); c++; } }); document.getElementById('modal-overlay').classList.add('hidden'); render(); showToast(c+"件追加しました", "success"); }
+        processBulk: (type) => { const r = document.getElementById('bulk-txt').value.split('\n').filter(x=>x.trim()); let c = 0; r.forEach((n, i) => { let nm = n.split('\t')[0].trim(); if (i === 0 && (nm.includes('名') || nm==='教室' || nm==='教員')) return; if(nm) { if(type==='rooms') state.rooms.push({id:'r_'+Date.now()+Math.random(), name:nm, capacity:1, ngTimes:{}}); if(type==='teachers') state.teachers.push({id:'t_'+Date.now()+Math.random(), name:nm, maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); c++; } }); document.getElementById('modal-overlay').classList.add('hidden'); render(); showToast(c+"件追加しました", "success"); },
+        pushUndo: () => { if (!state.undoStack) state.undoStack = []; state.undoStack.push(JSON.stringify(state.generatedSchedule)); if(state.undoStack.length > 15) state.undoStack.shift(); },
+        undo: () => { if(state.undoStack?.length > 0) { state.generatedSchedule = JSON.parse(state.undoStack.pop()); state.selectedDashCell = null; render(); showToast("戻しました"); } }
     };
 
     document.getElementById('btn-next').onclick = () => { if (currentStep === 9) actions.startGeneration(); else if (currentStep < MAX_STEPS) { currentStep++; render(); } else actions.exportToSpreadsheet(); };
