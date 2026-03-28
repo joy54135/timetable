@@ -1,6 +1,6 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.53 (Absolute Safe & Auto Relay)
+  Version: 13.54 (Absolute Safe & Auto Relay)
   Description: 最新GAS URL適用。初期化エラーの完全排除。コード途切れを防止した究極安定版。
 =========================================== -->
 <!DOCTYPE html>
@@ -8,7 +8,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.53</title>
+    <title>Smart TimeTable - Ver 13.54</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -44,7 +44,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.53 Absolute Safe)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.54 Absolute Safe)</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -83,8 +83,8 @@
     // ==========================================
     // 1. 初期化・定数
     // ==========================================
-    // ★ 最新URL
-    var GAS_URL = "https://script.google.com/macros/s/AKfycbz1d_X8kVtu4MixEE4EkyOI7-r3uoHNBg0-47HnQrUOY9St6s7ltTohwNdd03s8yaV18A/exec";
+    // ★ 最新URLをセット
+    var GAS_URL = "https://script.google.com/macros/s/AKfycbyD4ST1ymXWXiIcPRs1K91VanNMzNOtFJQxET3FMeI85vp0bNZe-_20q_9V-atVlAt8ig/exec";
     var GRADES = [1, 2, 3, 4, 5, 6];
     var DAYS = ['月', '火', '水', '木', '金'];
     var PERIODS = [1, 2, 3, 4, 5, 6];
@@ -223,7 +223,7 @@
         var t = document.getElementById('toast');
         var m = document.getElementById('toast-msg');
         if(!t || !m) return;
-        t.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ' + (type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-slate-800 text-white'));
+        t.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm flex items-center gap-2 z-[9999] transition-all opacity-100 ' + (type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-slate-800 text-white'));
         m.innerText = msg;
         setTimeout(function(){ t.classList.replace('opacity-100', 'opacity-0'); }, 3000);
     }
@@ -376,7 +376,7 @@
         if (prevBtn) prevBtn.style.visibility = (state.currentStep === 1 ? 'hidden' : 'visible');
 
         var dotsHtml = '';
-        for(var i=1; i<=MAX_STEPS-1; i++) { dotsHtml += '<div class="step-dot ' + (i<=state.currentStep?'active':'') + '"></div>'; }
+        for(var i=1; i<=MAX_STEPS-1; i++) { dotsHtml += `<div class="step-dot ${i<=state.currentStep?'active':''} "></div>`; }
         var progressDots = document.getElementById('progress-dots');
         if (progressDots) progressDots.innerHTML = state.currentStep === 10 ? '' : dotsHtml;
 
@@ -471,7 +471,7 @@
         var html = '<div class="flex flex-col gap-6 h-full overflow-y-auto custom-scrollbar pr-2" id="sc-step1">';
         html += '<div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 shadow-inner"><h3 class="font-black text-sm mb-3">学級数の設定</h3><div class="grid grid-cols-3 md:grid-cols-6 gap-3">';
         GRADES.forEach(function(g){
-            var val = state.grades[g] || 1;
+            var val = (state.grades && state.grades[g]) ? state.grades[g] : 1;
             html += '<div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center"><span class="text-slate-500 font-bold text-xs mb-2">' + g + '年</span><div class="flex items-center gap-2">';
             html += '<button onclick="actions.updateGrade(' + g + ', -1)" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 font-black text-slate-500 transition-colors">-</button>';
             html += '<input type="number" value="' + val + '" onchange="actions.setGrade(' + g + ', this.value)" class="w-10 text-xl font-black text-blue-600 text-center outline-none bg-transparent" min="1" max="10">';
@@ -786,19 +786,22 @@
     }
 
     function viewStep8() {
-        var uniqueSubs = [];
+        let uniqueSubs = [];
         if (state.subjects) {
             state.subjects.forEach(function(s){
                 if(uniqueSubs.indexOf(s.name) === -1) uniqueSubs.push(s.name);
             });
         }
         
-        var html = '<div class="flex flex-col h-full overflow-y-auto custom-scrollbar pr-4 space-y-6 pb-10" id="sc-step8">';
+        let html = '<div class="flex flex-col h-full overflow-y-auto custom-scrollbar pr-4 space-y-6 pb-10" id="sc-step8">';
         
         // 優先度：高（厳守）
         html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-rose-100 text-rose-700 font-black text-[10px] px-3 py-1 rounded-full">優先：高（厳守）</span><h3 class="text-lg font-black text-rose-900">1. 絶対に守らなければならない掟</h3></div>';
         html += '<div class="bg-rose-50/30 border border-rose-100 rounded-[24px] p-5 shadow-sm space-y-6">';
-        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-200 hover:shadow-md transition-all"><div class="flex flex-col"><span class="text-sm font-black text-slate-800">専科等教員の勤務可能時間を厳密に考慮する</span><p class="text-[10px] font-bold text-rose-600">※Step 4で設定した教員の✕（不可枠）には絶対に授業を入れません</p></div><input type="checkbox" ' + (state.advancedRules && state.advancedRules.considerSpecialistTimes?'checked':'') + ' onchange="actions.setRule(\'considerSpecialistTimes\', this.checked)" class="w-6 h-6 rounded text-rose-600"></label>';
+        
+        var considerSpecialistTimes = (state.advancedRules && state.advancedRules.considerSpecialistTimes) ? 'checked' : '';
+        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-200 hover:shadow-md transition-all"><div class="flex flex-col"><span class="text-sm font-black text-slate-800">専科等教員の勤務可能時間を厳密に考慮する</span><p class="text-[10px] font-bold text-rose-600">※Step 4で設定した教員の✕（不可枠）には絶対に授業を入れません</p></div><input type="checkbox" ' + considerSpecialistTimes + ' onchange="actions.setRule(\'considerSpecialistTimes\', this.checked)" class="w-6 h-6 rounded text-rose-600"></label>';
+        
         html += '<div class="p-4 bg-white rounded-xl border border-rose-100"><div class="text-sm font-black mb-2">連続授業（ニコイチ）の登録</div>';
         html += '<div class="flex gap-2 mb-3"><select id="rule-cont-g" class="m3-input !w-auto shadow-sm"><option value="全学年">全学年</option>' + GRADES.map(function(g){return '<option value="'+g+'年生">'+g+'年</option>';}).join('') + '</select>';
         html += '<select id="rule-cont-s" class="m3-input !w-auto shadow-sm">' + uniqueSubs.map(function(s){return '<option value="'+s+'">'+s+'</option>';}).join('') + '</select>';
@@ -816,7 +819,9 @@
         }
         
         html += '<div class="flex flex-wrap gap-2">' + contHtml + '</div></div>';
-        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-100"><span class="text-sm font-bold text-slate-700">連続授業を「1-2限, 3-4限, 5-6限」のペア枠に限定する</span><input type="checkbox" ' + (state.advancedRules && state.advancedRules.limitContinuousToSpecificPeriods?'checked':'') + ' onchange="actions.setRule(\'limitContinuousToSpecificPeriods\', this.checked)" class="w-5 h-5 rounded text-rose-600"></label>';
+        
+        var limitContinuous = (state.advancedRules && state.advancedRules.limitContinuousToSpecificPeriods) ? 'checked' : '';
+        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-100"><span class="text-sm font-bold text-slate-700">連続授業を「1-2限, 3-4限, 5-6限」のペア枠に限定する</span><input type="checkbox" ' + limitContinuous + ' onchange="actions.setRule(\'limitContinuousToSpecificPeriods\', this.checked)" class="w-5 h-5 rounded text-rose-600"></label>';
         html += '</div></div>';
 
         // 優先度：低（努力義務）
@@ -1031,7 +1036,7 @@
     // ==========================================
     window.actions = {
         pushSubjectsUndo: function() { if (!state.subjectsUndoStack) state.subjectsUndoStack = []; state.subjectsUndoStack.push(JSON.stringify(state.subjects)); if(state.subjectsUndoStack.length > 20) state.subjectsUndoStack.shift(); },
-        undoSubjects: function() { if(state.subjectsUndoStack.length > 0) { state.subjects = JSON.parse(state.subjectsUndoStack.pop()); render(); showToast("元に戻しました", "success"); } },
+        undoSubjects: function() { if(state.subjectsUndoStack && state.subjectsUndoStack.length > 0) { state.subjects = JSON.parse(state.subjectsUndoStack.pop()); render(); showToast("元に戻しました", "success"); } },
         getSubjectRoom: function(subId) { if(state.subjects) { for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id === subId) return state.subjects[i].defaultRoom || '通常教室'; } } return '通常教室'; },
         updateGrade: function(g, delta) { if(!state.grades) state.grades={}; state.grades[g] = Math.max(1, Math.min(10, (state.grades[g]||1) + delta)); initClassAssignments(); render(); },
         setGrade: function(g, val) { if(!state.grades) state.grades={}; state.grades[g] = Math.max(1, Math.min(10, parseInt(val) || 1)); initClassAssignments(); render(); },
@@ -1055,9 +1060,9 @@
         removeTeacher: function(id) { if(state.teachers) { state.teachers = state.teachers.filter(function(x){return x.id!==id;}); if(state.selectedTeacherId===id && state.teachers.length>0) state.selectedTeacherId=state.teachers[0].id; } render(); },
         toggleTeacherNG: function(id, k) { if(state.teachers) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) { if(!state.teachers[i].ngTimes) state.teachers[i].ngTimes={}; state.teachers[i].ngTimes[k] = !state.teachers[i].ngTimes[k]; } } } render(); },
         updateTeacherHomeroom: function(tid, cls) { if(state.teachers) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===tid) { if(state.teachers[i].homeroom && state.classAssignments && state.classAssignments[state.teachers[i].homeroom]) state.classAssignments[state.teachers[i].homeroom].homeroom = ''; state.teachers[i].homeroom = cls; if(cls && state.classAssignments && state.classAssignments[cls]) { var oldTId = state.classAssignments[cls].homeroom; if(oldTId) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===oldTId) state.teachers[j].homeroom = ''; } } state.classAssignments[cls].homeroom = tid; } } } } render(); },
-        updateHomeroom: function(cls, tid) { var oldTId = (state.classAssignments && state.classAssignments[cls]) ? state.classAssignments[cls].homeroom : null; if (oldTId && state.teachers) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===oldTId) state.teachers[j].homeroom = ''; } } if (tid && state.teachers) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===tid) { if(state.teachers[j].homeroom && state.classAssignments[state.teachers[j].homeroom]) state.classAssignments[state.teachers[j].homeroom].homeroom = ''; state.teachers[j].homeroom = cls; } } } if (!state.classAssignments) state.classAssignments={}; if (!state.classAssignments[cls]) state.classAssignments[cls] = { overrides: {} }; state.classAssignments[cls].homeroom = tid; render(); },
+        updateHomeroom: function(cls, tid) { var oldTId = (state.classAssignments && state.classAssignments[cls]) ? state.classAssignments[cls].homeroom : null; if (oldTId && state.teachers) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===oldTId) state.teachers[j].homeroom = ''; } } if (tid && state.teachers) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===tid) { if(state.teachers[j].homeroom && state.classAssignments && state.classAssignments[state.teachers[j].homeroom]) state.classAssignments[state.teachers[j].homeroom].homeroom = ''; state.teachers[j].homeroom = cls; } } } if (!state.classAssignments) state.classAssignments={}; if (!state.classAssignments[cls]) state.classAssignments[cls] = { overrides: {} }; state.classAssignments[cls].homeroom = tid; render(); },
         updateSubjectOverride: function(cls, sid, k, v) { if(!state.classAssignments) state.classAssignments={}; if(!state.classAssignments[cls]) state.classAssignments[cls] = { overrides: {} }; if(!state.classAssignments[cls].overrides) state.classAssignments[cls].overrides = {}; if(!state.classAssignments[cls].overrides[sid]) state.classAssignments[cls].overrides[sid]={}; if(v==="") delete state.classAssignments[cls].overrides[sid][k]; else state.classAssignments[cls].overrides[sid][k]=v; render(); },
-        copyClassSettings: function(src) { var grade = src.split('-')[0]; var n = (state.grades && state.grades[grade]) ? state.grades[grade] : 1; var srcData = state.classAssignments[src]; for(var i=1; i<=n; i++){ var t = grade + '-' + i; if(t!==src) { if(!state.classAssignments[t]) state.classAssignments[t] = { overrides: {} }; state.classAssignments[t].overrides = JSON.parse(JSON.stringify(srcData && srcData.overrides ? srcData.overrides : {})); } } render(); showToast(grade + "年の他クラスにコピーしました", "success"); },
+        copyClassSettings: function(src) { var grade = src.split('-')[0]; var n = (state.grades && state.grades[grade]) ? state.grades[grade] : 1; var srcData = state.classAssignments && state.classAssignments[src]; for(var i=1; i<=n; i++){ var t = grade + '-' + i; if(t!==src) { if(!state.classAssignments[t]) state.classAssignments[t] = { overrides: {} }; state.classAssignments[t].overrides = JSON.parse(JSON.stringify(srcData && srcData.overrides ? srcData.overrides : {})); } } render(); showToast(grade + "年の他クラスにコピーしました", "success"); },
         addSpecialBlock: function() { var subId = document.getElementById('sp-sub').value; var hrs = document.getElementById('sp-hrs').value; if(!subId || !hrs) { showToast("教科を入力してください", "error"); return; } var sub = null; if(state.subjects) { for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id === subId) sub = state.subjects[i]; } } if (!state.specialBlocks) state.specialBlocks = []; state.specialBlocks.unshift({ id:'sp_'+Date.now(), type:document.getElementById('sp-type').value, subjectId:subId, subject:sub?sub.name:'特殊', room:document.getElementById('sp-room').value, hours:Math.max(1, parseInt(hrs)||1), targets:[], teachers:[] }); render(); },
         removeSpecialBlock: function(idx) { if (state.specialBlocks) { state.specialBlocks.splice(idx, 1); render(); } },
         updateSpecialBlock: function(id, k, v) { if(state.specialBlocks) { for(var i=0; i<state.specialBlocks.length; i++){ if(state.specialBlocks[i].id===id) { state.specialBlocks[i][k] = (k==='hours'?Math.max(1, parseInt(v)||1):v); if(k==='hours' && state.specialBlocks[i].teachers) { for(var j=0; j<state.specialBlocks[i].teachers.length; j++){ if(state.specialBlocks[i].teachers[j].hours > state.specialBlocks[i][k]) state.specialBlocks[i].teachers[j].hours = state.specialBlocks[i][k]; } } } } } render(); },
@@ -1071,13 +1076,13 @@
         addAvoidTime: function() { var g = document.getElementById('rule-avoid-g').value; var s = document.getElementById('rule-avoid-s').value; var p = document.getElementById('rule-avoid-p').value; if(g && s && p) { if(!state.advancedRules) state.advancedRules={}; if(!state.advancedRules.avoidSpecificTimes) state.advancedRules.avoidSpecificTimes = []; state.advancedRules.avoidSpecificTimes.push({grade: g, subject: s, period: parseInt(p)}); render(); } },
         removeAvoidTime: function(idx) { if(state.advancedRules && state.advancedRules.avoidSpecificTimes) { state.advancedRules.avoidSpecificTimes.splice(idx, 1); render(); } },
         
-        openAllocModal: function(cls, subId, stdHours) { var cData = state.classAssignments[cls]; var ovr = {}; if (cData && cData.overrides && cData.overrides[subId]) ovr = cData.overrides[subId]; var rows = []; if (ovr.allocations && ovr.allocations.length > 0) { rows = JSON.parse(JSON.stringify(ovr.allocations)); } else { var defaultTid = ovr.teacherId || cData.homeroom || ''; rows = [{ teacherId: defaultTid, hours: stdHours }]; } state.allocationModal = { cls: cls, subId: subId, stdHours: stdHours, rows: rows }; render(); },
+        openAllocModal: function(cls, subId, stdHours) { var cData = state.classAssignments && state.classAssignments[cls]; var ovr = {}; if (cData && cData.overrides && cData.overrides[subId]) ovr = cData.overrides[subId]; var rows = []; if (ovr.allocations && ovr.allocations.length > 0) { rows = JSON.parse(JSON.stringify(ovr.allocations)); } else { var defaultTid = ovr.teacherId || (cData ? cData.homeroom : '') || ''; rows = [{ teacherId: defaultTid, hours: stdHours }]; } state.allocationModal = { cls: cls, subId: subId, stdHours: stdHours, rows: rows }; render(); },
         closeAllocModal: function() { state.allocationModal = null; render(); },
         addAllocRow: function() { if (state.allocationModal) { state.allocationModal.rows.push({ teacherId: '', hours: 1 }); render(); } },
         updateAllocRow: function(idx, key, val) { if (state.allocationModal) { if(key==='hours') state.allocationModal.rows[idx][key] = Math.max(0, parseInt(val)||0); else state.allocationModal.rows[idx][key] = val; render(); } },
         removeAllocRow: function(idx) { if (state.allocationModal) { state.allocationModal.rows.splice(idx, 1); render(); } },
-        saveAllocModal: function() { if (!state.allocationModal) return; var m = state.allocationModal; var total = 0; for(var i=0; i<m.rows.length; i++){ total += parseInt(m.rows[i].hours)||0; } if (total !== m.stdHours) { showToast('合計を ' + m.stdHours + ' コマに合わせてください', 'error'); return; } var hasEmpty = false; for(var i=0; i<m.rows.length; i++){ if(!m.rows[i].teacherId) hasEmpty = true; } if (hasEmpty) { showToast('教員を選択してください', 'error'); return; } if (!state.classAssignments[m.cls].overrides) state.classAssignments[m.cls].overrides = {}; if (!state.classAssignments[m.cls].overrides[m.subId]) state.classAssignments[m.cls].overrides[m.subId] = {}; if (m.rows.length === 1) { state.classAssignments[m.cls].overrides[m.subId].teacherId = m.rows[0].teacherId; delete state.classAssignments[m.cls].overrides[m.subId].allocations; } else { state.classAssignments[m.cls].overrides[m.subId].allocations = JSON.parse(JSON.stringify(m.rows)); } state.allocationModal = null; render(); showToast('分配を保存しました', 'success'); },
-        clearAllocations: function(cls, subId) { if (state.classAssignments[cls] && state.classAssignments[cls].overrides && state.classAssignments[cls].overrides[subId]) { delete state.classAssignments[cls].overrides[subId].allocations; render(); showToast('分配をリセットしました', 'success'); } },
+        saveAllocModal: function() { if (!state.allocationModal) return; var m = state.allocationModal; var total = 0; for(var i=0; i<m.rows.length; i++){ total += parseInt(m.rows[i].hours)||0; } if (total !== m.stdHours) { showToast('合計を ' + m.stdHours + ' コマに合わせてください', 'error'); return; } var hasEmpty = false; for(var i=0; i<m.rows.length; i++){ if(!m.rows[i].teacherId) hasEmpty = true; } if (hasEmpty) { showToast('教員を選択してください', 'error'); return; } if (!state.classAssignments) state.classAssignments={}; if (!state.classAssignments[m.cls]) state.classAssignments[m.cls] = {overrides:{}}; if (!state.classAssignments[m.cls].overrides) state.classAssignments[m.cls].overrides = {}; if (!state.classAssignments[m.cls].overrides[m.subId]) state.classAssignments[m.cls].overrides[m.subId] = {}; if (m.rows.length === 1) { state.classAssignments[m.cls].overrides[m.subId].teacherId = m.rows[0].teacherId; delete state.classAssignments[m.cls].overrides[m.subId].allocations; } else { state.classAssignments[m.cls].overrides[m.subId].allocations = JSON.parse(JSON.stringify(m.rows)); } state.allocationModal = null; render(); showToast('分配を保存しました', 'success'); },
+        clearAllocations: function(cls, subId) { if (state.classAssignments && state.classAssignments[cls] && state.classAssignments[cls].overrides && state.classAssignments[cls].overrides[subId]) { delete state.classAssignments[cls].overrides[subId].allocations; render(); showToast('分配をリセットしました', 'success'); } },
         setDashView: function(v) { state.dashView = v; state.selectedDashCell = null; render(); },
         setDashFilter: function(v) { state.dashFilter = v; render(); },
         clickDashCell: function(d, p) { 
@@ -1086,6 +1091,7 @@
                 var c1 = state.selectedDashCell; var c2 = { d: d, p: p }; 
                 if(c1.d!==c2.d || c1.p!==c2.p) { 
                     actions.pushUndo(); 
+                    if(!state.generatedSchedule) state.generatedSchedule={};
                     if(!state.generatedSchedule[c1.d]) state.generatedSchedule[c1.d] = {};
                     if(!state.generatedSchedule[c2.d]) state.generatedSchedule[c2.d] = {};
                     var ls1 = state.generatedSchedule[c1.d][c1.p] || []; var ls2 = state.generatedSchedule[c2.d][c2.p] || []; 
@@ -1101,9 +1107,11 @@
                 state.selectedDashCell = null; render(); 
             } 
         },
-        openBulk: function(type) { var ov = document.getElementById('modal-overlay'); var bd = document.getElementById('modal-body'); ov.classList.remove('hidden'); bd.innerHTML = '<h3 class="text-xl font-black mb-2">' + (type==='rooms'?'教室':'教員') + '一括貼付</h3><textarea id="bulk-txt" class="w-full h-40 p-4 bg-slate-50 border rounded-xl mb-4 text-xs font-bold" placeholder="改行区切りで貼付"></textarea><div class="flex gap-4"><button onclick="document.getElementById(\'modal-overlay\').classList.add(\'hidden\')" class="flex-1 p-3 bg-slate-100 rounded-xl font-bold">キャンセル</button><button onclick="actions.processBulk(\'' + type + '\')" class="flex-1 bg-blue-600 text-white rounded-xl font-black">追加</button></div>'; },
+        openBulk: function(type) { var ov = document.getElementById('modal-overlay'); var bd = document.getElementById('modal-body'); if(ov) ov.classList.remove('hidden'); if(bd) bd.innerHTML = '<h3 class="text-xl font-black mb-2">' + (type==='rooms'?'教室':'教員') + '一括貼付</h3><textarea id="bulk-txt" class="w-full h-40 p-4 bg-slate-50 border rounded-xl mb-4 text-xs font-bold" placeholder="改行区切りで貼付"></textarea><div class="flex gap-4"><button onclick="document.getElementById(\'modal-overlay\').classList.add(\'hidden\')" class="flex-1 p-3 bg-slate-100 rounded-xl font-bold">キャンセル</button><button onclick="actions.processBulk(\'' + type + '\')" class="flex-1 bg-blue-600 text-white rounded-xl font-black">追加</button></div>'; },
         processBulk: function(type) { 
-            var r = document.getElementById('bulk-txt').value.split('\n'); var c = 0; 
+            var txtEl = document.getElementById('bulk-txt');
+            if(!txtEl) return;
+            var r = txtEl.value.split('\n'); var c = 0; 
             for(var i=0; i<r.length; i++){
                 var n = r[i].trim(); if(!n) continue; var nm = n.split('\t')[0].trim(); if (i === 0 && (nm.indexOf('名')!==-1 || nm==='教室' || nm==='教員')) continue; 
                 if(nm) { 
@@ -1112,7 +1120,9 @@
                     c++; 
                 } 
             }
-            document.getElementById('modal-overlay').classList.add('hidden'); render(); showToast(c + '件追加しました', 'success'); 
+            var ov = document.getElementById('modal-overlay');
+            if(ov) ov.classList.add('hidden'); 
+            render(); showToast(c + '件追加しました', 'success'); 
         },
         pushUndo: function() { if (!state.undoStack) state.undoStack = []; state.undoStack.push(JSON.stringify(state.generatedSchedule)); if(state.undoStack.length > 15) state.undoStack.shift(); },
         undo: function() { if(state.undoStack && state.undoStack.length > 0) { state.generatedSchedule = JSON.parse(state.undoStack.pop()); state.selectedDashCell = null; render(); showToast('戻しました', 'success'); } },
@@ -1122,7 +1132,7 @@
             if(!diag) return showToast("詳細データがありません");
             const modal = document.getElementById('modal-overlay');
             const body = document.getElementById('modal-body');
-            modal.classList.remove('hidden');
+            if(modal) modal.classList.remove('hidden');
             
             let html = '<h3 class="text-xl font-black text-blue-900 mb-2">【AI診断】' + diag.target + '：' + diag.subject + '</h3>';
             html += '<p class="text-xs text-slate-500 mb-6 font-bold">AIがこの授業を配置できなかった原因と対策を報告します。</p>';
@@ -1143,7 +1153,7 @@
             }
             
             html += '</div><button onclick="document.getElementById(\'modal-overlay\').classList.add(\'hidden\')" class="w-full p-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all">閉じて設定を修正する</button>';
-            body.innerHTML = html;
+            if(body) body.innerHTML = html;
         },
 
         startGeneration: async function() {
