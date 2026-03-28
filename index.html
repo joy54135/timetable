@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.49 (Latest URL & Auto Relay)
+  Version: 13.50 (Matrix Fix & Auto Relay)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 最新のGAS URLを適用。自動リレー通信(1-3分)、プレフライトマトリックス(表)の完全稼働版
+  Description: 最新URL適用。マトリックスの同名教科統合。自動リレー機能搭載。
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.49</title>
+    <title>Smart TimeTable - Ver 13.50</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -45,7 +45,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.49 Auto Relay & Matrix)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.50 Matrix Fix & Auto Relay)</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -84,8 +84,8 @@
     // ==========================================
     // 1. 初期化・定数
     // ==========================================
-    // ★ 最新のGAS URLを設定
-    var GAS_URL = "https://script.google.com/macros/s/AKfycby0BPqylfOUpF1u8fBr5MveISgxosmxtjpBoUewvaGXBklBFPqIXNIp848F66pIe2RmKA/exec";
+    // ★ 新しいGAS URLを適用
+    var GAS_URL = "https://script.google.com/macros/s/AKfycbxv1j72V7hTezs58n3DGEDZ78gslo5iIApQXb8YQo7ohCHrCD26kksyYs-84T4b7I6r/exec";
     var GRADES = [1, 2, 3, 4, 5, 6];
     var DAYS = ['月', '火', '水', '木', '金'];
     var PERIODS = [1, 2, 3, 4, 5, 6];
@@ -688,15 +688,18 @@
         
         html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-rose-100 text-rose-700 font-black text-[10px] px-3 py-1 rounded-full">優先：高</span><h3 class="text-lg font-black">1. 授業の形状と一斉配置</h3></div><div class="bg-white border border-slate-200 rounded-[24px] p-5 shadow-sm">';
         html += '<div class="mb-6"><div class="text-sm font-bold mb-2">1日の最後の時間に固定する教科</div><div class="flex flex-wrap gap-2">';
-        state.subjects.forEach(function(s){
-            var isChk = state.advancedRules.lastPeriodSubjects.indexOf(s.name) !== -1;
-            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-blue-100 border-blue-400 text-blue-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'lastPeriodSubjects\',\'' + s.name + '\')">' + s.name + '</label>';
+        
+        // ユニーク科目名で表示
+        var uniqueSubNames = []; state.subjects.forEach(function(s){ if(uniqueSubNames.indexOf(s.name)===-1) uniqueSubNames.push(s.name); });
+        uniqueSubNames.forEach(function(sName){
+            var isChk = state.advancedRules.lastPeriodSubjects.indexOf(sName) !== -1;
+            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-blue-100 border-blue-400 text-blue-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'lastPeriodSubjects\',\'' + sName + '\')">' + sName + '</label>';
         });
         html += '</div></div>';
         html += '<div class="mb-6"><div class="text-sm font-bold mb-2">連続授業（ニコイチ）の登録</div><div class="flex gap-2 mb-3"><select id="rule-cont-g" class="m3-input !w-auto shadow-sm"><option value="全学年">全学年</option>';
         GRADES.forEach(function(g){ html += '<option value="' + g + '年生">' + g + '年</option>'; });
         html += '</select><select id="rule-cont-s" class="m3-input !w-auto shadow-sm">';
-        state.subjects.forEach(function(s){ html += '<option value="' + s.name + '">' + s.name + '</option>'; });
+        uniqueSubNames.forEach(function(sName){ html += '<option value="' + sName + '">' + sName + '</option>'; });
         html += '</select><button onclick="actions.addContinuousClass()" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm transition-colors">+ 追加</button></div><div class="flex flex-wrap gap-2">';
         if (state.advancedRules.continuousClasses && state.advancedRules.continuousClasses.length > 0) {
             for(var i=0; i<state.advancedRules.continuousClasses.length; i++){
@@ -708,7 +711,7 @@
         var isLimitCont = state.advancedRules.limitContinuousToSpecificPeriods;
         html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-slate-50 rounded-xl border border-slate-200 mb-6 hover:bg-slate-100 transition-colors"><span class="text-sm font-bold text-slate-700">連続授業を「1-2限, 3-4限, 5-6限」のペア枠に限定する（中休み跨ぎ不可）</span><input type="checkbox" ' + (isLimitCont?'checked':'') + ' onchange="actions.setRule(\'limitContinuousToSpecificPeriods\', this.checked)" class="w-5 h-5 rounded text-blue-600"></label>';
         html += '<div class="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl"><div class="text-sm font-black mb-1 text-indigo-900">【新機能】ペア枠・専科空き時間確保ルール</div><p class="text-[10px] font-bold text-indigo-700 mb-3">ペア時間の片方が以下の教科になった場合、もう片方を「クラス担任の授業」にして特定教科教員を空き時間に自動確保します。</p><div class="flex gap-2 mb-3"><select id="rule-pair-s" class="m3-input !w-auto border-indigo-200 shadow-sm">';
-        state.subjects.forEach(function(s){ html += '<option value="' + s.name + '">' + s.name + '</option>'; });
+        uniqueSubNames.forEach(function(sName){ html += '<option value="' + sName + '">' + sName + '</option>'; });
         html += '</select><button onclick="actions.addPairHomeroom()" class="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">+ 追加</button></div><div class="flex flex-wrap gap-2">';
         if (state.advancedRules.pairHomeroomSubjects && state.advancedRules.pairHomeroomSubjects.length > 0) {
             for(var i=0; i<state.advancedRules.pairHomeroomSubjects.length; i++){
@@ -722,9 +725,9 @@
         var isLimitOne = state.advancedRules.limitOneSubjectPerDay;
         html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-slate-50 rounded-xl border border-slate-200 mb-6 hover:bg-slate-100 transition-colors"><span class="text-sm font-bold text-slate-700">1日に同一教科を分散させる（1日1回ルール）</span><input type="checkbox" ' + (isLimitOne?'checked':'') + ' onchange="actions.setRule(\'limitOneSubjectPerDay\', this.checked)" class="w-5 h-5 rounded text-blue-600"></label>';
         html += '<div class="mb-6"><div class="text-sm font-bold mb-2">配置間隔をなるべく空ける（最大化）教科</div><div class="flex flex-wrap gap-2">';
-        state.subjects.forEach(function(s){
-            var isChk = state.advancedRules.maxIntervalSubjects.indexOf(s.name) !== -1;
-            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-amber-100 border-amber-400 text-amber-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'maxIntervalSubjects\',\'' + s.name + '\')">' + s.name + '</label>';
+        uniqueSubNames.forEach(function(sName){
+            var isChk = state.advancedRules.maxIntervalSubjects.indexOf(sName) !== -1;
+            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-amber-100 border-amber-400 text-amber-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'maxIntervalSubjects\',\'' + sName + '\')">' + sName + '</label>';
         });
         html += '</div></div>';
         var isConsiderSp = state.advancedRules.considerSpecialistTimes;
@@ -734,7 +737,7 @@
         html += '<div class="mb-6 p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl"><div class="text-sm font-black mb-1 text-emerald-900">特定の時間帯への配置を避ける教科</div><p class="text-[10px] font-bold text-emerald-700 mb-3">午後の体育などを指定すると、AIがその時間帯を極力避けて配置します。</p><div class="flex flex-wrap gap-2 mb-3 items-center"><select id="rule-avoid-g" class="m3-input !w-auto border-emerald-200 shadow-sm"><option value="全学年">全学年</option>';
         GRADES.forEach(function(g){ html += '<option value="' + g + '">' + g + '年生</option>'; });
         html += '</select><select id="rule-avoid-s" class="m3-input !w-auto border-emerald-200 shadow-sm">';
-        state.subjects.forEach(function(s){ html += '<option value="' + s.name + '">' + s.name + '</option>'; });
+        uniqueSubNames.forEach(function(sName){ html += '<option value="' + sName + '">' + sName + '</option>'; });
         html += '</select><select id="rule-avoid-p" class="m3-input !w-auto border-emerald-200 shadow-sm">';
         PERIODS.forEach(function(p){ html += '<option value="' + p + '">' + p + '限</option>'; });
         html += '</select><button onclick="actions.addAvoidTime()" class="bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-700 transition-colors">+ 追加</button></div><div class="flex flex-wrap gap-2">';
@@ -745,14 +748,14 @@
             }
         } else { html += '<span class="text-xs text-emerald-400 font-bold">未登録</span>'; }
         html += '</div></div><div class="mb-6"><div class="text-sm font-bold mb-2">午前中（集中しやすい時間帯）に優先配置する教科</div><div class="flex flex-wrap gap-2">';
-        state.subjects.forEach(function(s){
-            var isChk = state.advancedRules.amPrioritySubjects.indexOf(s.name) !== -1;
-            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-emerald-100 border-emerald-400 text-emerald-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'amPrioritySubjects\',\'' + s.name + '\')">' + s.name + '</label>';
+        uniqueSubNames.forEach(function(sName){
+            var isChk = state.advancedRules.amPrioritySubjects.indexOf(sName) !== -1;
+            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-emerald-100 border-emerald-400 text-emerald-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'amPrioritySubjects\',\'' + sName + '\')">' + sName + '</label>';
         });
         html += '</div></div><div><div class="text-sm font-bold mb-1">学年内で連続して配置する教科</div><p class="text-[10px] font-bold text-slate-500 mb-3">準備や片付けのため、曜日を跨いでも同じ学年を続ける</p><div class="flex flex-wrap gap-2">';
-        state.subjects.forEach(function(s){
-            var isChk = state.advancedRules.consecutiveGradeSubjects.indexOf(s.name) !== -1;
-            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-emerald-100 border-emerald-400 text-emerald-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'consecutiveGradeSubjects\',\'' + s.name + '\')">' + s.name + '</label>';
+        uniqueSubNames.forEach(function(sName){
+            var isChk = state.advancedRules.consecutiveGradeSubjects.indexOf(sName) !== -1;
+            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-emerald-100 border-emerald-400 text-emerald-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'consecutiveGradeSubjects\',\'' + sName + '\')">' + sName + '</label>';
         });
         html += '</div></div></div></div></div></div>'; return html;
     }
@@ -768,15 +771,20 @@
             if(load > avail) errors.push('[教員限界] ' + t.name + ': 担当授業(' + load + 'コマ) が 勤務可能枠(' + avail + 'コマ) を超過しています。');
         });
         
+        // ★ マトリックスの同名教科統合ロジック
+        var uniqueSubjectNames = [];
+        state.subjects.forEach(function(s) {
+            if (uniqueSubjectNames.indexOf(s.name) === -1) uniqueSubjectNames.push(s.name);
+        });
+
         var classNeeds = {};
         var classAssigned = {};
         var totalErr = 0;
         var classes = Object.keys(state.classAssignments);
         classes.forEach(function(cls) {
-            var grade = cls.split('-')[0];
-            state.subjects.forEach(function(s) {
-                classNeeds[cls + '-' + s.name] = parseInt(s.stdHours[grade]) || 0;
-                classAssigned[cls + '-' + s.name] = 0;
+            uniqueSubjectNames.forEach(function(sName) {
+                classNeeds[cls + '-' + sName] = 0;
+                classAssigned[cls + '-' + sName] = 0;
             });
         });
 
@@ -787,6 +795,8 @@
             
             state.subjects.forEach(function(s) {
                 var hours = parseInt(s.stdHours[grade]) || 0;
+                classNeeds[cls + '-' + s.name] += hours; // 同名教科を合算
+                
                 if (hours === 0) return;
                 var isSp = false;
                 if(state.specialBlocks) {
@@ -800,10 +810,10 @@
                 if (ovr.allocations && ovr.allocations.length > 0) {
                     var sumAlloc = 0;
                     ovr.allocations.forEach(function(a) { sumAlloc += (parseInt(a.hours)||0); });
-                    classAssigned[cls + '-' + s.name] += sumAlloc;
+                    classAssigned[cls + '-' + s.name] += sumAlloc; // 合算
                 } else {
                     var tId = ovr.teacherId || cData.homeroom;
-                    if (tId) classAssigned[cls + '-' + s.name] += hours;
+                    if (tId) classAssigned[cls + '-' + s.name] += hours; // 合算
                 }
             });
         });
@@ -828,15 +838,15 @@
         html += '<div class="flex-1 bg-slate-900 rounded-[32px] p-6 flex flex-col overflow-hidden shadow-xl relative"><div class="flex items-center justify-between mb-4 shrink-0"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full animate-pulse ' + (totalErr===0 && errors.length===0?'bg-green-500':'bg-red-500') + '"></div><h4 class="text-sm font-black text-white">プレフライト・マトリックス</h4></div><span class="text-[10px] text-slate-400">不足: 赤(-) / 超過: 黄(+) / 一致: 緑(✓)</span></div>';
         
         html += '<div class="flex-1 overflow-auto custom-scrollbar rounded-xl border border-slate-700 bg-white"><table class="w-full text-[10px] text-center border-collapse whitespace-nowrap"><thead class="bg-slate-100 border-b border-slate-200 sticky top-0 z-10"><tr><th class="p-2 border-r border-slate-200">クラス</th>';
-        state.subjects.forEach(function(s){ html += '<th class="p-2 border-r border-slate-200 font-black">' + s.name + '</th>'; });
+        uniqueSubjectNames.forEach(function(sName){ html += '<th class="p-2 border-r border-slate-200 font-black">' + sName + '</th>'; });
         html += '<th class="p-2 font-black text-slate-500">合計(実/必)</th></tr></thead><tbody>';
         
         classes.forEach(function(cls){
             var cTotNeed = 0; var cTotAct = 0;
             html += '<tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors"><td class="p-1.5 bg-slate-50 font-bold border-r border-slate-200">' + cls + '</td>';
-            state.subjects.forEach(function(s){
-                var need = classNeeds[cls + '-' + s.name] || 0;
-                var act = classAssigned[cls + '-' + s.name] || 0;
+            uniqueSubjectNames.forEach(function(sName){
+                var need = classNeeds[cls + '-' + sName] || 0;
+                var act = classAssigned[cls + '-' + sName] || 0;
                 cTotNeed += need; cTotAct += act;
                 var diff = act - need;
                 var cellCls = 'text-slate-300'; var txt = '-';
