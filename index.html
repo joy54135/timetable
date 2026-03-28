@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.31 (Stable Base 13.22 + Allocation)
+  Version: 13.32 (Stable Base 13.22 + Allocation Only)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 安定稼働していた13.22をベースに、教員分配モーダル機能のみを追加（非圧縮）
+  Description: 13.22をベースに、教員分配モーダル機能のみを追加し、安定性を極限まで高めたバージョン
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.31</title>
+    <title>Smart TimeTable - Ver 13.32</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -44,7 +44,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.31 Stable Base)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.32 Stable)</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -67,13 +67,13 @@
     </div>
 </div>
 
-<!-- モーダル系 -->
+<!-- ==========================================
+  DOMコンテナ群 (絶対に消さない)
+========================================== -->
 <div id="modal-overlay" class="fixed inset-0 z-[150] flex items-center justify-center hidden p-4 bg-slate-900/60 backdrop-blur-sm">
     <div class="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl flex flex-col" id="modal-body"></div>
 </div>
-<!-- ★教員分配用モーダルコンテナ -->
 <div id="allocation-modal-container"></div>
-
 <div id="loading-overlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center flex-col gap-4 transition-all">
     <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
     <div class="text-white text-center">
@@ -84,7 +84,7 @@
 
 <script>
     // ==========================================
-    // 1. 定数と初期データ
+    // 1. 定数と初期データ（最優先で定義）
     // ==========================================
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzk7FOx-EuX906szB8GmGsrMLxlESbc0bn2hFWq0XFFyHECZCDWLZzRbrmoi5vlBvVoHA/exec";
 
@@ -94,8 +94,8 @@
     const MAX_STEPS = 10;
     
     const stepTitles = [
-        "1. 基本設定", "2. 行事・全校不可枠", "3. 教科と教室", "4. 教員名簿と不可枠", "5. 特殊授業ブロック", 
-        "6. クラス別 担当割り当て", "7. 教員別 担当確認", "8. 授業コマ配置ルール", "9. 最終点検", "10. ダッシュボード"
+        "1. 基本設定", "2. 行事・不可枠", "3. 教科と教室", "4. 教員名簿", "5. 特殊授業", 
+        "6. クラス別担当", "7. 教員別確認", "8. 配置ルール", "9. 最終点検", "10. ダッシュボード"
     ];
 
     const initialRooms = [
@@ -148,7 +148,10 @@
     let lastClickId = null;
 
     let state = {
-        periods: GRADES.reduce((acc, g) => ({ ...acc, [g]: {月:5,火:5,水:4,木:5,金:5} }), {}),
+        periods: {
+            1: {月:5,火:5,水:4,木:5,金:5}, 2: {月:5,火:5,水:4,木:5,金:5}, 3: {月:5,火:5,水:4,木:5,金:5},
+            4: {月:5,火:5,水:4,木:5,金:5}, 5: {月:5,火:5,水:4,木:5,金:5}, 6: {月:5,火:5,水:4,木:5,金:5}
+        },
         grades: { 1:3, 2:3, 3:3, 4:3, 5:3, 6:3 },
         rooms: JSON.parse(JSON.stringify(initialRooms)),
         subjects: JSON.parse(JSON.stringify(initialSubjects)),
@@ -166,9 +169,7 @@
         selectedDashCell: null, 
         editingTeacherNameId: null, 
         selectedTeacherId: null,
-        
-        // ★ 教員分配モーダル用
-        allocationModal: null 
+        allocationModal: null // ★教員分配モーダル用
     };
 
     // ==========================================
@@ -195,7 +196,7 @@
         try {
             localStorage.setItem('tt_v13_data', JSON.stringify(state));
         } catch (e) {
-            console.warn("ブラウザの制限で保存できませんでした", e);
+            console.warn("ブラウザの制限により保存できませんでした", e);
         }
     };
 
@@ -269,7 +270,7 @@
         }
     };
 
-    // ★ 教員負荷計算に allocations を対応
+    // ★ 教員負荷計算に allocations（分配） を対応
     const getTeacherLoads = () => { 
         const loads = {}; 
         state.teachers.forEach(t => { loads[t.id] = 0; }); 
@@ -549,16 +550,16 @@
             <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
                 <span class="text-slate-500 font-bold text-xs mb-2">${g}年</span>
                 <div class="flex items-center gap-2">
-                    <button onclick="state.grades[${g}]=Math.max(1, (parseInt(state.grades[${g}])||1)-1);render()" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 font-black text-slate-500">-</button>
+                    <button onclick="actions.updateGrade(${g}, -1)" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 font-black text-slate-500">-</button>
                     <span class="text-xl font-black text-blue-600 w-6 text-center">${val}</span>
-                    <button onclick="state.grades[${g}]=Math.min(10, (parseInt(state.grades[${g}])||1)+1);render()" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 font-black text-slate-500">+</button>
+                    <button onclick="actions.updateGrade(${g}, 1)" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 font-black text-slate-500">+</button>
                 </div>
             </div>`;
         });
         
         html += `</div></div>
             <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 shadow-inner">
-                <h3 class="font-black text-sm mb-3">学年・曜日ごとの授業コマ数</h3>
+                <h3 class="font-black text-sm mb-3">時数設定</h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs text-center border-collapse min-w-[500px]">
                         <thead><tr><th class="p-2 border-b text-slate-500">学年</th>`;
@@ -572,7 +573,10 @@
         GRADES.forEach(g => {
             html += `<tr><td class="p-2 font-bold border-b text-slate-600">${g}年</td>`;
             DAYS.forEach(d => {
-                const val = state.periods?.[g]?.[d] || 0;
+                let val = 0;
+                if (state.periods && state.periods[g] && state.periods[g][d]) {
+                    val = state.periods[g][d];
+                }
                 html += `<td class="p-2 border-b">
                     <div class="flex items-center justify-center gap-2">
                         <button onclick="actions.updatePeriod(${g}, '${d}', -1)" class="w-7 h-7 bg-white shadow-sm border border-slate-200 hover:bg-slate-50 rounded-lg font-black text-slate-500 transition-colors">-</button>
@@ -589,7 +593,11 @@
         
         GRADES.forEach(g => {
             let sum = 0;
-            DAYS.forEach(d => { sum += parseInt(state.periods?.[g]?.[d]) || 0; });
+            DAYS.forEach(d => { 
+                if (state.periods && state.periods[g] && state.periods[g][d]) {
+                    sum += parseInt(state.periods[g][d]) || 0; 
+                }
+            });
             html += `
             <div class="bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm flex items-center gap-2">
                 <span class="text-xs font-bold text-slate-500">${g}年 合計</span>
@@ -617,10 +625,10 @@
         <div class="flex flex-col md:flex-row gap-4 h-full">
             <div class="w-full md:w-1/4 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-1/3 md:h-full">
                 <div class="flex justify-between items-center mb-3">
-                    <h3 class="font-black text-xs">特別教室の登録</h3>
+                    <h3 class="font-black text-xs">特別教室</h3>
                     <div class="flex gap-1.5">
-                        <button onclick="actions.openBulk('rooms')" class="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md font-bold">一括貼付</button>
-                        <button onclick="state.rooms.push({id:'r_'+Date.now(), name:'新規教室', capacity:1, ngTimes:{}});render()" class="text-[10px] bg-blue-50 text-blue-600 border px-2 py-1 rounded-md font-bold">+ 追加</button>
+                        <button onclick="actions.openBulk('rooms')" class="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md font-bold">一括</button>
+                        <button onclick="actions.addRoom()" class="text-[10px] bg-blue-50 text-blue-600 border px-2 py-1 rounded-md font-bold">+ 追加</button>
                     </div>
                 </div>
                 <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">`;
@@ -628,7 +636,7 @@
         state.rooms.forEach((r, i) => {
             html += `
             <div class="flex items-center gap-1 bg-white p-1.5 rounded-lg border shadow-sm">
-                <input type="text" value="${r.name}" onchange="state.rooms[${i}].name=this.value;render()" class="flex-1 min-w-0 text-xs font-bold outline-none">
+                <input type="text" value="${r.name}" onchange="actions.updateRoomName('${r.id}', this.value)" class="flex-1 min-w-0 text-xs font-bold outline-none">
                 <div class="flex items-center gap-0.5 ml-1">
                     <span class="text-[8px] text-slate-400 font-bold">枠:</span>
                     <input type="number" value="${r.capacity||1}" onchange="actions.updateRoomCapacity('${r.id}', parseInt(this.value)||1)" min="1" class="w-8 text-xs font-black text-center bg-slate-50 rounded p-1 border outline-none">
@@ -640,7 +648,7 @@
         html += `</div></div>
             <div class="flex-1 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-2/3 md:h-full overflow-hidden">
                 <div class="flex justify-between items-center mb-3">
-                    <h3 class="font-black text-xs">教科・標準時数・マトリックス</h3>
+                    <h3 class="font-black text-xs">科目時数</h3>
                     <div class="flex items-center gap-2">
                         <button onclick="actions.undoSubjects()" class="text-[10px] px-3 py-1.5 rounded-md font-bold shadow-sm transition-colors flex items-center gap-1 ${state.subjectsUndoStack?.length===0?'bg-slate-100 text-slate-400 cursor-not-allowed':'bg-white border text-slate-600 hover:bg-slate-50'}" ${state.subjectsUndoStack?.length===0?'disabled':''}>元に戻す</button>
                         <button onclick="actions.addSubject('新規教科')" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-md font-bold shadow-sm hover:bg-blue-700">+ 新規教科</button>
@@ -655,13 +663,19 @@
         html += `<th class="w-12"></th></tr></thead><tbody>`;
         
         state.subjects.forEach(s => {
-            const rmSelected = rmOpts.replace(`value="${s.defaultRoom||'通常教室'}"`, `value="${s.defaultRoom||'通常教室'}" selected`);
+            const safeRoom = s.defaultRoom || '通常教室';
+            let localRmOpts = rmOpts;
+            if (safeRoom !== '通常教室') {
+                localRmOpts = localRmOpts.replace(`value="${safeRoom}"`, `value="${safeRoom}" selected`);
+            }
+            
             html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
                 <td class="p-1 border-r"><input type="text" value="${s.name}" onchange="actions.updateSubject('${s.id}', 'name', this.value)" class="m3-input !p-1.5 w-full font-bold bg-transparent border-transparent focus:bg-white shadow-none"></td>
-                <td class="p-1 border-r"><select onchange="actions.updateSubject('${s.id}', 'defaultRoom', this.value)" class="m3-input !p-1.5 text-[10px] w-full bg-transparent border-transparent cursor-pointer shadow-none">${rmSelected}</select></td>`;
+                <td class="p-1 border-r"><select onchange="actions.updateSubject('${s.id}', 'defaultRoom', this.value)" class="m3-input !p-1.5 text-[10px] w-full bg-transparent border-transparent cursor-pointer shadow-none">${localRmOpts}</select></td>`;
             
             GRADES.forEach(g => {
-                const val = s.stdHours?.[g] || 0;
+                let val = 0;
+                if (s.stdHours && s.stdHours[g]) val = s.stdHours[g];
                 html += `<td class="p-1 border-r"><div class="flex items-center justify-center gap-1">
                     <button onclick="actions.updateSubjectHour('${s.id}', ${g}, -1)" class="w-5 h-5 bg-slate-100 rounded text-slate-500 font-black">-</button>
                     <span class="w-4 text-center font-black text-blue-600">${val}</span>
@@ -675,7 +689,11 @@
         
         GRADES.forEach(g => { 
             let total = 0;
-            state.subjects.forEach(s => { total += parseInt(s.stdHours?.[g]) || 0; });
+            state.subjects.forEach(s => { 
+                if (s && s.stdHours && s.stdHours[g]) {
+                    total += parseInt(s.stdHours[g]) || 0; 
+                }
+            });
             html += `<td class="p-2 border-r border-blue-100 font-black text-blue-700 text-sm">${total}</td>`; 
         });
         html += `<td></td></tr></tfoot></table></div></div></div>`;
@@ -764,7 +782,7 @@
 
         html += `</div></div>
             <div class="flex-1 flex flex-col bg-slate-50 border p-4 h-1/2 md:h-full items-center rounded-2xl">
-                <h3 class="font-black text-sm mb-1">個人の勤務不可時間設定</h3>
+                <h3 class="font-black text-sm mb-1">個人の不可時間</h3>
                 ${teacher ? `<p class="text-[10px] text-slate-500 mb-4 text-center font-bold text-blue-600">${teacher.name}先生の不可枠(✕)</p>${gridHtml}` : `<div class="flex-1 flex items-center justify-center text-slate-400 text-sm">教員を選択</div>`}
             </div>
         </div>`;
@@ -785,12 +803,12 @@
                         <option value="">- 教科 -</option>${sOpts}
                     </select>
                     <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 shadow-sm">
-                        <button onclick="document.getElementById('sp-hrs').value = Math.max(1, parseInt(document.getElementById('sp-hrs').value)-1)" class="w-6 h-6">-</button>
-                        <input type="number" id="sp-hrs" value="1" class="w-6 text-center font-black outline-none text-xs">
-                        <button onclick="document.getElementById('sp-hrs').value = parseInt(document.getElementById('sp-hrs').value)+1" class="w-6 h-6">+</button>
+                        <button onclick="document.getElementById('sp-hrs').value = Math.max(1, parseInt(document.getElementById('sp-hrs').value)-1)" class="w-6 h-6 text-slate-500 font-black hover:bg-slate-100 rounded">-</button>
+                        <input type="number" id="sp-hrs" value="1" class="w-6 text-center font-black outline-none text-blue-600 bg-transparent text-xs" min="1">
+                        <button onclick="document.getElementById('sp-hrs').value = parseInt(document.getElementById('sp-hrs').value)+1" class="w-6 h-6 text-slate-500 font-black hover:bg-slate-100 rounded">+</button>
                     </div>
                     <select id="sp-room" class="m3-input !w-auto !py-1">${rOpts}</select>
-                    <button onclick="actions.addSpecialBlock()" class="bg-indigo-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg ml-auto hover:bg-indigo-700">+ 作成</button>
+                    <button onclick="actions.addSpecialBlock()" class="bg-indigo-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg shadow-sm ml-auto hover:bg-indigo-700">+ 作成</button>
                 </div>
             </div>
             <div class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">`;
@@ -806,30 +824,31 @@
                 }
                 
                 html += `
-                <div class="bg-white border rounded-xl p-3 shadow-sm relative">
+                <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2 relative">
                     <button onclick="actions.removeSpecialBlock(${i})" class="absolute top-2 right-2 text-slate-300 hover:text-rose-500 font-bold px-1.5 py-0.5">✕</button>
                     <div class="flex flex-wrap items-center gap-3 pr-6">
                         <span class="px-2 py-1 bg-indigo-100 text-indigo-800 font-black text-[10px] rounded uppercase">${b.type==='joint'?'合同':'分割'}</span>
                         <span class="font-black text-sm">${subName}</span>
                         <div class="flex items-center gap-1 border border-slate-200 bg-slate-50 px-1 py-0.5 rounded">
                             <span class="text-[10px] font-bold text-slate-500 ml-1">週</span>
-                            <button onclick="actions.updateSpecialBlock('${b.id}', 'hours', Math.max(1, ${b.hours}-1))" class="w-5 h-5 bg-white shadow-sm rounded text-slate-500 font-black text-xs">-</button>
+                            <button onclick="actions.updateSpecialBlock('${b.id}', 'hours', Math.max(1, ${b.hours}-1))" class="w-5 h-5 bg-white shadow-sm rounded text-slate-500 font-black text-xs flex items-center justify-center hover:bg-slate-100">-</button>
                             <span class="w-4 text-center font-black text-blue-600 text-xs">${b.hours}</span>
-                            <button onclick="actions.updateSpecialBlock('${b.id}', 'hours', ${b.hours}+1)" class="w-5 h-5 bg-white shadow-sm rounded text-slate-500 font-black text-xs">+</button>
+                            <button onclick="actions.updateSpecialBlock('${b.id}', 'hours', ${b.hours}+1)" class="w-5 h-5 bg-white shadow-sm rounded text-slate-500 font-black text-xs flex items-center justify-center hover:bg-slate-100">+</button>
                             <span class="text-[10px] font-bold text-slate-500 mr-1">コマ</span>
                         </div>
                         <div class="flex items-center gap-1">
                             <span class="text-xs font-bold text-slate-500">📍</span>
-                            <select onchange="actions.updateSpecialBlock('${b.id}', 'room', this.value)" class="text-xs font-bold text-slate-600 border rounded p-1 outline-none bg-slate-50 hover:bg-white">${rOptsSelected}</select>
+                            <select onchange="actions.updateSpecialBlock('${b.id}', 'room', this.value)" class="text-xs font-bold text-slate-600 border border-slate-200 rounded p-1 outline-none bg-slate-50 hover:bg-white cursor-pointer shadow-sm">${rOptsSelected}</select>
                         </div>
                     </div>
-                    <div class="flex flex-wrap gap-4 bg-slate-50 p-2 rounded-lg border mt-1">
+                    <div class="flex flex-wrap gap-4 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1">
                         <div class="flex-1 min-w-[200px]">
                             <div class="text-[9px] font-black text-slate-400 mb-1">対象クラス</div>
                             <div class="flex flex-wrap gap-1">`;
                             
                 Object.keys(state.classAssignments).forEach(cls => {
-                    const isTgt = (b.targets || []).includes(cls);
+                    let isTgt = false;
+                    if (b.targets && b.targets.includes(cls)) isTgt = true;
                     html += `<label class="flex items-center gap-1 bg-white border ${isTgt?'border-indigo-400 bg-indigo-50':'border-slate-200'} px-1.5 py-0.5 rounded cursor-pointer">
                         <input type="checkbox" class="hidden" ${isTgt?'checked':''} onchange="actions.toggleSpecialTarget('${b.id}', '${cls}')">
                         <span class="text-[10px] font-bold ${isTgt?'text-indigo-700':'text-slate-500'}">${cls}</span>
@@ -842,7 +861,8 @@
                             <div class="flex flex-wrap gap-1">`;
                             
                 state.teachers.forEach(t => {
-                    const bt = (b.teachers || []).find(x=>x.id===t.id);
+                    let bt = null;
+                    if (b.teachers) bt = b.teachers.find(x=>x.id===t.id);
                     html += `<label class="flex items-center gap-1 bg-white border ${bt?'border-indigo-400 bg-indigo-50':'border-slate-200'} px-1.5 py-0.5 rounded cursor-pointer">
                         <input type="checkbox" class="hidden" ${bt?'checked':''} onchange="actions.toggleSpecialTeacher('${b.id}', '${t.id}')">
                         <span class="text-[10px] font-bold ${bt?'text-indigo-700':'text-slate-500'}">${t.name}</span>
@@ -852,15 +872,15 @@
                 html += `</div>`;
                 
                 if(b.teachers && b.teachers.length > 0) {
-                    html += `<div class="mt-2 text-[9px] font-black text-slate-400 mb-1 border-t pt-1">各参加時数</div><div class="flex flex-wrap gap-1.5">`;
+                    html += `<div class="mt-2 text-[9px] font-black text-slate-400 mb-1 border-t border-slate-200 pt-1">各教員の参加コマ数</div><div class="flex flex-wrap gap-1.5">`;
                     b.teachers.forEach(bt => {
-                        const tName = state.teachers.find(t=>t.id===bt.id)?.name || '？';
+                        const tName = state.teachers.find(t=>t.id===bt.id)?.name || '不明';
                         html += `<div class="flex items-center gap-1 bg-white border border-indigo-200 px-1 py-0.5 rounded shadow-sm">
                             <span class="text-[9px] font-bold text-indigo-700 truncate max-w-[60px]">${tName}</span>
                             <div class="flex items-center gap-0.5">
-                                <button onclick="actions.updateSpecialTeacherHours('${b.id}', '${bt.id}', Math.max(0, ${bt.hours}-1))" class="w-4 h-4 bg-indigo-100 rounded text-indigo-700 font-black text-[10px]">-</button>
+                                <button onclick="actions.updateSpecialTeacherHours('${b.id}', '${bt.id}', Math.max(0, ${bt.hours}-1))" class="w-4 h-4 bg-indigo-100 hover:bg-indigo-200 rounded text-indigo-700 font-black text-[10px] flex items-center justify-center">-</button>
                                 <span class="w-4 text-center text-[10px] font-black text-indigo-600">${bt.hours}</span>
-                                <button onclick="actions.updateSpecialTeacherHours('${b.id}', '${bt.id}', Math.min(${b.hours}, ${bt.hours}+1))" class="w-4 h-4 bg-indigo-100 rounded text-indigo-700 font-black text-[10px]">+</button>
+                                <button onclick="actions.updateSpecialTeacherHours('${b.id}', '${bt.id}', Math.min(${b.hours}, ${bt.hours}+1))" class="w-4 h-4 bg-indigo-100 hover:bg-indigo-200 rounded text-indigo-700 font-black text-[10px] flex items-center justify-center">+</button>
                             </div>
                         </div>`;
                     });
@@ -876,7 +896,10 @@
     // ★ 教員分配に対応した Step 6
     const viewStep6 = () => {
         const classes = Object.keys(state.classAssignments); 
-        const activeCls = (state.dashFilter && classes.includes(state.dashFilter)) ? state.dashFilter : (classes[0] || '1-1');
+        let activeCls = classes[0] || '1-1';
+        if (state.dashFilter && classes.includes(state.dashFilter)) {
+            activeCls = state.dashFilter;
+        }
         const cData = state.classAssignments[activeCls]; 
         
         if (!cData) return `<div class="p-4 text-center text-slate-400 font-bold">クラスデータがありません。リセットしてください。</div>`;
@@ -900,7 +923,8 @@
                 <div class="flex-1 overflow-y-auto p-1.5 space-y-1 custom-scrollbar flex flex-row lg:flex-col flex-wrap lg:flex-nowrap">`;
                 
         classes.forEach(c => {
-            const tName = state.teachers.find(t=>t.id===state.classAssignments[c]?.homeroom)?.name || '(未定)';
+            const tId = state.classAssignments[c] && state.classAssignments[c].homeroom;
+            const tName = tId ? (state.teachers.find(t=>t.id===tId)?.name || '(未定)') : '(未定)';
             html += `<div onclick="actions.setDashFilter('${c}')" class="p-2 rounded-xl cursor-pointer transition-all border ${c===activeCls?'bg-blue-600 text-white border-blue-600':'bg-white text-slate-700 border-slate-100 hover:bg-blue-50'} flex flex-col min-w-[80px]">
                 <span class="font-black text-sm">${c}</span>
                 <span class="text-[9px] truncate ${c===activeCls?'text-blue-200':'text-slate-400'}">${tName}</span>
@@ -931,7 +955,9 @@
             }
             
             let ovr = {};
-            if (cData.overrides && cData.overrides[s.id]) ovr = cData.overrides[s.id];
+            if (cData.overrides && cData.overrides[s.id]) {
+                ovr = cData.overrides[s.id];
+            }
             
             if (spBlock) {
                 let spTNames = '未設定';
@@ -949,7 +975,11 @@
                     <div class="text-[10px] font-bold text-slate-500 bg-white p-1.5 rounded border truncate">📍 ${spBlock.room||s.defaultRoom}</div>
                 </div>`;
             } else {
-                const hrName = state.teachers.find(t=>t.id===cData.homeroom)?.name || '未設定'; 
+                let hrName = '未設定';
+                if (cData.homeroom) {
+                    const hrT = state.teachers.find(t=>t.id===cData.homeroom);
+                    if (hrT) hrName = hrT.name;
+                }
                 
                 let rmOptsStr = `<option value="">${s.defaultRoom || '通常教室'}</option>`;
                 state.rooms.forEach(r => { rmOptsStr += `<option value="${r.name}">${r.name}</option>`; });
@@ -1167,11 +1197,11 @@
         <div class="flex flex-col flex-1 overflow-hidden min-h-0">
             <div class="flex justify-between items-center mb-3 bg-white border p-2 rounded-2xl shadow-sm shrink-0 gap-2">
                 <div class="flex items-center gap-2 bg-slate-50 p-1 rounded-xl">
-                    <button onclick="actions.setDashView('class')" class="px-4 py-2 rounded-lg font-black text-xs ${state.dashView==='class'?'bg-blue-600 text-white':'text-slate-500'}">クラス別</button>
-                    <button onclick="actions.setDashView('teacher')" class="px-4 py-2 rounded-lg font-black text-xs ${state.dashView==='teacher'?'bg-blue-600 text-white':'text-slate-500'}">教員別</button>
+                    <button onclick="actions.setDashView('class')" class="px-4 py-2 rounded-lg font-black text-xs ${state.dashView==='class'?'bg-blue-600 text-white':'text-slate-500 hover:bg-slate-100'}">クラス別</button>
+                    <button onclick="actions.setDashView('teacher')" class="px-4 py-2 rounded-lg font-black text-xs ${state.dashView==='teacher'?'bg-blue-600 text-white':'text-slate-500 hover:bg-slate-100'}">教員別</button>
                 </div>
                 <select onchange="actions.setDashFilter(this.value)" class="m3-input !py-2 !text-sm !w-48">${fOptsSelected}</select>
-                <button onclick="actions.undo()" class="text-xs px-4 py-2 border rounded-xl font-bold ${state.undoStack?.length===0?'text-slate-300':'text-slate-700'}">戻す</button>
+                <button onclick="actions.undo()" class="text-xs px-4 py-2 border rounded-xl font-bold ${state.undoStack?.length===0?'text-slate-300':'text-slate-700 hover:bg-slate-50'}">戻す</button>
             </div>
             
             <div id="step10-scroll" class="flex-1 overflow-auto bg-white border rounded-2xl shadow-sm custom-scrollbar p-1 min-h-0">
@@ -1201,7 +1231,7 @@
                 
                 html += `<div onclick="actions.clickDashCell('${d}', ${p})" class="dash-cell border-b border-r ${isS?'ring-2 ring-amber-500 z-10 bg-amber-50':''}">`;
                 ls.forEach(l => {
-                    let tName = l.teacherName;
+                    let tName = l.teacherName || '未定';
                     if (state.dashView === 'teacher' && l.targets) tName = l.targets.join(', ');
                     html += `<div class="text-center w-full px-1 py-1 flex flex-col items-center justify-center h-full gap-0.5">
                         <div class="px-2 py-0.5 rounded text-[10px] font-black uppercase border leading-none ${getSubColor(l.subject)} shadow-sm truncate max-w-[95%]">${l.subject}</div>
@@ -1276,7 +1306,7 @@
         exportData: () => { 
             const a = document.createElement('a'); 
             a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state)); 
-            a.download = "timetable_v13_31.json"; 
+            a.download = "timetable_v13_32.json"; 
             a.click(); 
         },
         importData: () => { 
