@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.25 (Next Generation - Final Stable)
+  Version: 13.26 (Next Generation - Final Stable)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 真っ白になる構文エラー（JSX記号の混入）を完全排除、安全なコード展開
+  Description: 真っ白になる構文エラー(SyntaxError)の完全修正、全校マトリックス機能
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.25</title>
+    <title>Smart TimeTable - Ver 13.26</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -44,7 +44,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (Stable 13.25)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (Stable 13.26)</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -60,7 +60,7 @@
             <div id="progress-dots" class="flex gap-1.5 flex-wrap justify-center"></div>
         </div>
         <div id="step-content" class="fade-in flex-1 overflow-hidden flex flex-col relative min-h-0"></div>
-        <div class="flex justify-between items-center mt-4 pt-4 border-t border-slate-100 shrink-0">
+        <div class="flex justify-between items-center mt-4 pt-4 border-t border-slate-100 shrink-0" id="bottom-navigation">
             <button id="btn-prev" class="m3-btn-secondary w-[120px]">戻る</button>
             <button id="btn-next" class="m3-btn-primary w-[180px]"><span id="btn-next-text">次へ進む</span></button>
         </div>
@@ -201,7 +201,27 @@
             } 
         }
         initClassAssignments();
-        render();
+        
+        // ★ 安全なレンダリング（データ破損時に真っ白になるのを防ぐ）
+        try {
+            render();
+        } catch (e) {
+            console.error("Render Error:", e);
+            document.getElementById('step-content').innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full gap-4 text-center">
+                    <div class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center text-2xl">⚠️</div>
+                    <h2 class="text-xl font-black text-red-600">データの読み込みエラー</h2>
+                    <p class="text-sm font-bold text-slate-600">
+                        過去の保存データが破損しているか、新しいバージョンと互換性がありません。<br>
+                        右上の「リセット」ボタンを押して初期化してください。
+                    </p>
+                    <button onclick="actions.resetData()" class="mt-4 px-6 py-3 bg-red-500 text-white font-bold rounded-xl shadow-sm hover:bg-red-600">
+                        データをリセットする
+                    </button>
+                </div>
+            `;
+            document.getElementById('bottom-navigation').style.display = 'none';
+        }
     };
 
     const initClassAssignments = () => { 
@@ -711,8 +731,11 @@
         actions.validateConflicts();
         
         let fOpts = '';
-        if (state.dashView === 'class') { Object.keys(state.classAssignments).forEach(c => { fOpts += `<option value="${c}">${c}</option>`; }); } 
-        else if (state.dashView === 'teacher') { state.teachers.forEach(t => { fOpts += `<option value="${t.id}">${t.name}</option>`; }); }
+        if (state.dashView === 'class') { 
+            Object.keys(state.classAssignments).forEach(c => { fOpts += `<option value="${c}">${c}</option>`; }); 
+        } else if (state.dashView === 'teacher') { 
+            state.teachers.forEach(t => { fOpts += `<option value="${t.id}">${t.name}</option>`; }); 
+        }
         const fOptsSelected = fOpts.replace(`value="${state.dashFilter}"`, `value="${state.dashFilter}" selected`);
 
         let html = `
@@ -732,12 +755,10 @@
                 </div>
             </div>`;
 
-        // 衝突警告
         if(state.conflicts?.length > 0) {
             html += `<div class="mb-2 px-2 text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-200 py-1 rounded-lg">⚠️ 教員または教室の衝突が ${state.conflicts.length} 件発生しています。赤色でハイライトされた枠を確認してください。</div>`;
         }
 
-        // メインマトリックス表示
         html += `<div id="step10-scroll" class="flex-1 overflow-auto bg-white border rounded-2xl shadow-sm custom-scrollbar relative min-h-0">`;
         
         if (state.dashView === 'all') {
@@ -767,7 +788,6 @@
             });
             html += `</tbody></table>`;
         } else {
-            // クラス別・教員別のグリッド
             html += `<div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[700px] h-full gap-px bg-slate-200 border-none">
                 <div class="bg-slate-100 py-2 flex items-center justify-center font-bold text-[10px]">Time</div>`;
             DAYS.forEach(d => {
@@ -792,7 +812,6 @@
         }
         html += `</div>`;
 
-        // 未配置コマエリア
         if (state.unassigned && state.unassigned.length > 0) {
             html += `
             <div class="mt-3 bg-white border border-rose-200 rounded-2xl p-3 shrink-0 shadow-sm flex flex-col min-h-[100px] max-h-[30vh]">
@@ -827,18 +846,25 @@
                 if (data.success) {
                     state.generatedSchedule = data.schedule; state.unassigned = data.unassigned || []; currentStep = 10; state.undoStack = []; state.selectedDashCell = null; state.selectedUnassignedIndex = null; render();
                     showToast(data.message || "成功！", "success");
-                } else showToast("生成エラー: " + data.message, "error", 6000);
-            } catch (e) { showToast("通信エラー。シークレットモードで試すか、別アカウントをログアウトしてください。", "error", 15000); } finally { hideLoading(); }
+                } else {
+                    showToast("生成エラー: " + data.message, "error", 6000);
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("通信エラー。シークレットモードで試すか、別アカウントをログアウトしてください。", "error", 15000);
+            } finally { hideLoading(); }
         },
         exportToSpreadsheet: async () => {
-            if (!state.generatedSchedule) return; showLoading("出力中...", "書き込んでいます...");
+            if (!state.generatedSchedule) return;
+            showLoading("出力中...", "書き込んでいます...");
             try {
                 const res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'export', schedule: state.generatedSchedule, state: state }) });
                 const data = await res.json();
-                if(data.success) showToast("出力成功！スプシを確認してください", "success"); else showToast("出力エラー: " + data.message, "error", 6000);
+                if(data.success) showToast("出力成功！スプシを確認してください", "success");
+                else showToast("出力エラー: " + data.message, "error", 6000);
             } catch (e) { showToast("通信エラー", "error", 6000); } finally { hideLoading(); }
         },
-        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_25.json"; a.click(); },
+        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_26.json"; a.click(); },
         importData: () => { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ try { const loaded = JSON.parse(e.target.result); sanitizeState(loaded); currentStep=1; render(); showToast("読込完了", "success"); } catch(err) { showToast("読込エラー", "error"); } } }; i.click(); },
         resetData: () => { if(confirm("リセットしますか？")) { localStorage.clear(); location.reload(); } },
         updatePeriod: (g, d, delta) => { state.periods[g][d] = Math.max(0, Math.min(6, (state.periods[g][d]||0)+delta)); render(); },
@@ -885,51 +911,38 @@
             }
         },
         clickDashCell: (d, p, viewType, targetFilter) => { 
-            // 未配置コマが選択されている場合、ここに追加（アサイン）
             if (state.selectedUnassignedIndex !== null) {
                 actions.pushUndo();
                 const lesson = state.unassigned[state.selectedUnassignedIndex];
                 state.unassigned.splice(state.selectedUnassignedIndex, 1);
                 if(!state.generatedSchedule[d][p]) state.generatedSchedule[d][p] = [];
                 state.generatedSchedule[d][p].push(lesson);
-                state.selectedUnassignedIndex = null;
-                render();
-                return;
+                state.selectedUnassignedIndex = null; render(); return;
             }
-            
-            // スワップ（入れ替え）処理
-            if(!state.selectedDashCell) { 
-                state.selectedDashCell = { d, p, viewType, targetFilter }; render(); 
-            } else { 
+            if(!state.selectedDashCell) { state.selectedDashCell = { d, p, viewType, targetFilter }; render(); } 
+            else { 
                 const c1 = state.selectedDashCell; const c2 = { d, p, viewType, targetFilter }; 
                 if(c1.d!==c2.d || c1.p!==c2.p || c1.targetFilter!==c2.targetFilter) { 
                     actions.pushUndo(); 
-                    const ls1 = state.generatedSchedule[c1.d][c1.p] || []; 
-                    const ls2 = state.generatedSchedule[c2.d][c2.p] || []; 
+                    const ls1 = state.generatedSchedule[c1.d][c1.p] || []; const ls2 = state.generatedSchedule[c2.d][c2.p] || []; 
                     const f1 = l => (c1.viewType==='teacher') ? l.teacherIds.includes(c1.targetFilter) : l.targets.includes(c1.targetFilter); 
                     const f2 = l => (c2.viewType==='teacher') ? l.teacherIds.includes(c2.targetFilter) : l.targets.includes(c2.targetFilter); 
                     const it1 = ls1.filter(f1); const it2 = ls2.filter(f2); 
-                    it1.forEach(i => ls1.splice(ls1.indexOf(i), 1)); 
-                    it2.forEach(i => ls2.splice(ls2.indexOf(i), 1)); 
-                    it1.forEach(i => ls2.push(i)); 
-                    it2.forEach(i => ls1.push(i)); 
-                } 
-                state.selectedDashCell = null; render(); 
+                    it1.forEach(i => ls1.splice(ls1.indexOf(i), 1)); it2.forEach(i => ls2.splice(ls2.indexOf(i), 1)); 
+                    it1.forEach(i => ls2.push(i)); it2.forEach(i => ls1.push(i)); 
+                } state.selectedDashCell = null; render(); 
             } 
         },
         validateConflicts: () => {
             state.conflicts = [];
             if(!state.generatedSchedule) return;
             DAYS.forEach(d => PERIODS.forEach(p => {
-                const ts = new Set();
-                const cs = new Set();
-                const rm = {};
+                const ts = new Set(); const cs = new Set(); const rm = {};
                 (state.generatedSchedule[d][p] || []).forEach(l => {
                     l.teacherIds.forEach(tid => { if(ts.has(tid)) state.conflicts.push({day: d, period: p, tid: tid}); ts.add(tid); });
                     l.targets.forEach(tgt => { if(cs.has(tgt)) state.conflicts.push({day: d, period: p, tgt: tgt}); cs.add(tgt); });
                     if(l.room !== '通常教室') {
-                        if(!rm[l.room]) rm[l.room] = 0;
-                        rm[l.room]++;
+                        if(!rm[l.room]) rm[l.room] = 0; rm[l.room]++;
                         const cap = state.rooms.find(r=>r.name===l.room)?.capacity || 1;
                         if(rm[l.room] > cap) state.conflicts.push({day: d, period: p});
                     }
