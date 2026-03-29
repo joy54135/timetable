@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.5.3</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.5.5</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script>
@@ -35,7 +35,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
     <header class="flex items-center justify-between mb-3 shrink-0 px-2">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800 dark:text-slate-100">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-tight">Marathon Hybrid (Ver 15.5.3)</p></div>
+            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800 dark:text-slate-100">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-tight">Marathon Hybrid (Ver 15.5.5)</p></div>
         </div>
         <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
             <button onclick="actions.toggleDarkMode()" class="p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors mr-2" title="テーマ切替">
@@ -67,7 +67,6 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
         <p class="text-indigo-200 font-bold text-sm" id="loading-desc">しばらくお待ちください</p>
         <p class="text-slate-500 font-mono text-xs mt-2" id="global-timer-display">累計経過時間: 0.0s</p>
         
-        <!-- ★ 更新: 直近とベストのデュアル表示パネル -->
         <div id="loading-best-container" class="mt-5 hidden flex-row items-center justify-center bg-slate-800/80 px-6 py-4 rounded-2xl border border-amber-500/30 shadow-[0_0_15px_rgba(251,191,36,0.1)] gap-6">
             <div class="flex flex-col items-center min-w-[100px]">
                 <span class="text-[10px] font-black text-slate-400 tracking-widest uppercase mb-1">🔄 直近の結果</span>
@@ -82,7 +81,6 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 
         <p class="text-amber-300 font-black text-[11px] mt-4 bg-slate-800 px-5 py-2 rounded-full border border-slate-600 shadow-inner hidden mx-auto" id="loading-status"></p>
     </div>
-    <!-- ★ ボタンのアクションをインテリジェント・キャンセルに紐付け -->
     <button id="btn-cancel-gen" onclick="actions.cancelGeneration()" class="mt-6 px-8 py-3 bg-slate-800 text-slate-300 border border-slate-600 rounded-full text-sm font-bold hover:bg-rose-900 hover:border-rose-500 transition-colors hidden shadow-lg focus:outline-none focus:ring-2 focus:ring-rose-500">生成をキャンセルして戻る</button>
 </div>
 
@@ -516,16 +514,16 @@ window.actions = {
         document.getElementById('modal-overlay').classList.remove('hidden');
     },
 
-    // ★ マラソン生成エンジン (直近結果表示 ＆ インテリジェント・キャンセル機能)
+    // ★ マラソン生成エンジン (毎回完全にリセットする方式)
     startGeneration: async function(){
         state.marathon.active = true; state.marathon.currentGen = 1; globalStartTime = Date.now();
         state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null};
-        actions.runMarathonCycle(true);
+        actions.runMarathonCycle();
     },
     continueMarathon: async function(){
         state.marathon.active = true; 
         if(state.marathon.maxGen !== Infinity) state.marathon.maxGen += 10;
-        actions.runMarathonCycle(false);
+        actions.runMarathonCycle();
     },
     continueGeneration: function(){
         state.marathon.active = false;
@@ -553,7 +551,7 @@ window.actions = {
         render();
     },
 
-    runMarathonCycle: async function(isNew){
+    runMarathonCycle: async function(){
         const m = state.marathon;
         startGenTimer();
         showLoading("AIマラソン中...", `第 ${m.currentGen} / ${m.maxGen===Infinity?'∞':m.maxGen} 世代`, true, `目標：未配置 ${m.target} 以下`);
@@ -569,7 +567,8 @@ window.actions = {
         }
 
         try {
-            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state, currentSchedule: isNew ? null : state.generatedSchedule, unassigned: isNew ? null : state.unassigned }) });
+            // ★ 修正: 毎回完全に新しい盤面（null）からスタートさせる (袋小路防止)
+            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state, currentSchedule: null, unassigned: null }) });
             const data = await res.json();
             
             // キャンセルボタンが押されていたらこれ以降の処理をスキップ
@@ -581,7 +580,7 @@ window.actions = {
                 state.scoreCard = data.scoreCard;
                 state.reportDetails = data.reportDetails;
 
-                // ★ 追加: 直近の結果を画面に即座に反映
+                // 直近の結果を画面に即座に反映
                 if (bestContainer && latestRecord) {
                     bestContainer.classList.remove('hidden');
                     bestContainer.classList.add('flex');
@@ -622,10 +621,10 @@ window.actions = {
                         showToast(`最大世代到達。最も優秀な盤面（未配置 ${state.best.unassignedCount}）を表示します。`, "success");
                     }
                 } else {
-                    m.currentGen++; actions.runMarathonCycle(false); 
+                    m.currentGen++; actions.runMarathonCycle(); // 次の世代へ
                 }
             } else {
-                if(m.ignoreFatal) { m.currentGen++; actions.runMarathonCycle(true); } 
+                if(m.ignoreFatal) { m.currentGen++; actions.runMarathonCycle(); } 
                 else { showToast("致命的エラー: "+data.message,"error"); hideLoading(); state.marathon.active = false; }
             }
         } catch(e) { showToast("通信エラー","error"); hideLoading(); state.marathon.active = false; }
