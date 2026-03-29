@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.5.8</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.5.9</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script>
@@ -35,7 +35,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
     <header class="flex items-center justify-between mb-3 shrink-0 px-2">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800 dark:text-slate-100">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-tight">Marathon Hybrid (Ver 15.5.8)</p></div>
+            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800 dark:text-slate-100">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-tight">Marathon Hybrid (Ver 15.5.9)</p></div>
         </div>
         <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
             <button onclick="actions.toggleDarkMode()" class="p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors mr-2" title="テーマ切替">
@@ -89,7 +89,7 @@ var GAS_URL="https://script.google.com/macros/s/AKfycbznGEOXNkiBGy__Bmlb-8IVfLfc
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4,5,6];
 var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室","4. 教員名簿","5. 特殊授業 (分散機能)","6. クラス別担当 (混合・固定)","7. 教員別確認","8. 配置ルール (排他・バッファ)","9. 最終点検","10. 司令塔(ダッシュボード)"];
-var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}, exclusivePairs:[]}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'1-1', marathon: {active:false, target:0, maxGen:10, currentGen:1, ignoreFatal:true}, best: {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, subjectsUndoStack:[], undoStack:[]};
+var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}, exclusivePairs:[]}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon: {active:false, target:0, maxGen:10, currentGen:1, ignoreFatal:true}, best: {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, subjectsUndoStack:[], undoStack:[]};
 
 let genTimerInterval = null, sessionStartTime = null, globalStartTime = null;
 
@@ -154,7 +154,29 @@ function render(){
     try{localStorage.setItem('tt_v15_stable',JSON.stringify(state));}catch(e){}
     document.getElementById('step-title').innerText=stepTitles[state.currentStep-1]||'';
     const nb=document.getElementById('btn-next'),nt=document.getElementById('btn-next-text');
-    if(nb&&nt){if(state.currentStep===9){nt.innerText="マラソン開始";nb.className="m3-btn-primary w-[180px] bg-indigo-600 hover:bg-indigo-700";}else if(state.currentStep===10){nt.innerText="スプレッドシート出力";nb.className="m3-btn-primary w-[180px] bg-emerald-600 hover:bg-emerald-700";}else{nt.innerText="次へ進む";nb.className="m3-btn-primary w-[180px]";}}
+    if(nb&&nt){
+        nb.onclick = null; // Reset
+        if(state.currentStep===9){
+            // ★ 生成結果を見るボタンの完全対応
+            if (state.generatedSchedule || (state.unassigned && state.unassigned.length > 0)) {
+                nt.innerText="▶ 生成結果を見る";
+                nb.className="m3-btn-primary w-[180px] bg-indigo-600 hover:bg-indigo-700 transition-colors";
+                nb.onclick = () => { actions.jumpToResult(); };
+            } else {
+                nt.innerText="マラソン開始";
+                nb.className="m3-btn-primary w-[180px] bg-indigo-600 hover:bg-indigo-700 transition-colors";
+                nb.onclick = () => { actions.startGeneration(); };
+            }
+        }else if(state.currentStep===10){
+            nt.innerText="スプレッドシート出力";
+            nb.className="m3-btn-primary w-[180px] bg-emerald-600 hover:bg-emerald-700 transition-colors";
+            nb.onclick = () => { actions.exportToSpreadsheet(); };
+        }else{
+            nt.innerText="次へ進む";
+            nb.className="m3-btn-primary w-[180px] transition-colors";
+            nb.onclick = () => { state.currentStep++; render(); };
+        }
+    }
     document.getElementById('btn-prev').style.visibility=(state.currentStep===1?'hidden':'visible');
     document.getElementById('progress-dots').innerHTML=Array.from({length:10},(_,i)=>`<div class="step-dot ${i+1<=state.currentStep?'active !bg-indigo-500':''}"></div>`).join('');
     const content=document.getElementById('step-content');
@@ -348,12 +370,24 @@ window.viewStep9 = ()=>{
     <div class="flex-1 bg-slate-900 rounded-[32px] p-6 flex flex-col overflow-hidden shadow-xl">
     <div class="flex items-center justify-between mb-4 shrink-0"><h4 class="text-sm font-black text-white">プレフライト・マトリックス</h4><span class="text-[10px] text-slate-400">不足:赤 超過:黄 一致:緑</span></div>
     <div class="flex-1 overflow-auto custom-scrollbar rounded-xl border border-slate-700 bg-white dark:bg-slate-800"><table class="w-full text-[10px] text-center border-collapse whitespace-nowrap"><thead class="bg-slate-100 dark:bg-slate-700 border-b dark:border-slate-600 sticky top-0 z-10"><tr><th class="p-2 dark:text-slate-200">クラス</th>${uSubs.map(s=>`<th class="p-2 font-black dark:text-slate-200">${s}</th>`).join('')}</tr></thead><tbody>${classes.map(cls=>`<tr><td class="p-2 bg-slate-50 dark:bg-slate-900/50 font-bold border-r dark:border-slate-700 dark:text-slate-300">${cls}</td>${uSubs.map(s=>{let n=classNeeds[`${cls}-${s}`]||0,a=classAssigned[`${cls}-${s}`]||0,d=a-n,c='text-slate-300 dark:text-slate-600',t='-';if(n>0||a>0){if(d===0){c='bg-green-50 dark:bg-green-900/30 text-green-500 dark:text-green-400 font-bold';t='✓';}else if(d<0){c='bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-black';t=d;totalErr++;}else{c='bg-yellow-100 dark:bg-yellow-900/40 text-yellow-600 dark:text-yellow-400 font-black';t='+'+d;totalErr++;}}return `<td class="p-2 border-b dark:border-slate-700 border-r dark:border-slate-700 ${c}">${t}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>
-    <div class="mt-4 shrink-0 flex justify-center">${state.generatedSchedule?`<button onclick="actions.jumpToResult()" class="px-8 py-3 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 rounded-xl font-black hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors">▶ 生成結果を見る (再計算なし)</button>`:''}</div></div></div>`;
+    </div></div>`;
 };
 
 // ★ マトリックスを組み込んだ Step 10
 window.viewStep10 = ()=>{
     if(!state.generatedSchedule && (!state.unassigned || state.unassigned.length===0)) return '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500 font-black">AI生成を開始してください</div>';
+    
+    // ★ 表示フィルターの補正 (真っ白問題の解消)
+    if (!state.dashTab) state.dashTab = 'matrix';
+    if (!state.matrixAxis) state.matrixAxis = 'class';
+    const classes = state.classAssignments ? Object.keys(state.classAssignments) : [];
+    const teachers = state.teachers || [];
+    if (state.dashView === 'class') {
+        if (!classes.includes(state.dashFilter) && classes.length > 0) state.dashFilter = classes[0];
+    } else if (state.dashView === 'teacher') {
+        if (!teachers.some(t => t.id === state.dashFilter) && teachers.length > 0) state.dashFilter = teachers[0].id;
+    }
+
     const sc=state.scoreCard, m=state.marathon;
     let html=`<div class="flex flex-col flex-1 overflow-hidden min-h-0">`;
     
@@ -416,7 +450,7 @@ window.viewStep10 = ()=>{
                     <div class="text-[10px] font-black ${c.impact > 80 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}">${c.type}</div>
                     <div class="text-[9px] font-bold text-slate-600 dark:text-slate-400 leading-tight">${c.detail}</div>
                 </div>
-            `).join('') || '<div class="text-[9px] text-slate-400 font-bold mt-1">理由データなし (玉突き失敗など)</div>';
+            `).join('') || '<div class="text-[9px] text-slate-400 font-bold mt-1">理由データなし</div>';
             
             html += `
                 <div class="bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800/50 rounded-xl p-2.5 shadow-sm flex flex-col">
@@ -437,8 +471,8 @@ window.viewStep10 = ()=>{
 
     // ★ 表示切り替えタブ
     html += `<div class="flex gap-2 mb-2 border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0">
-        <button onclick="actions.setDashTab('matrix')" class="px-4 py-2 text-sm font-black transition-colors ${state.dashTab==='matrix'?'text-indigo-600 border-b-2 border-indigo-600':'text-slate-500 dark:text-slate-400'}">全体マトリックス</button>
-        <button onclick="actions.setDashTab('individual')" class="px-4 py-2 text-sm font-black transition-colors ${state.dashTab==='individual'?'text-indigo-600 border-b-2 border-indigo-600':'text-slate-500 dark:text-slate-400'}">個別ビュー</button>
+        <button onclick="actions.setDashTab('matrix')" class="px-4 py-2 text-sm font-black transition-colors ${state.dashTab==='matrix'?'text-indigo-600 border-b-2 border-indigo-600':'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'} rounded-t-lg">全体マトリックス</button>
+        <button onclick="actions.setDashTab('individual')" class="px-4 py-2 text-sm font-black transition-colors ${state.dashTab==='individual'?'text-indigo-600 border-b-2 border-indigo-600':'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'} rounded-t-lg">個別ビュー</button>
     </div>`;
 
     if (state.dashTab === 'matrix') {
@@ -500,7 +534,7 @@ window.viewStep10 = ()=>{
 
                                     tr += `<td class="p-1 border-r dark:border-slate-700/50 h-full align-top">
                                         <div class="h-full flex flex-col items-center justify-center p-1 rounded ${conflictClass} ${getSubColor(l.subject)} shadow-sm relative overflow-hidden min-h-[44px]">
-                                            ${targetLessons.length > 1 ? `<span class="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-black px-1 rounded-bl">重複</span>` : ''}
+                                            ${targetLessons.length > 1 ? `<span class="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-black px-1 rounded-bl shadow">重複</span>` : ''}
                                             <div class="font-black text-[10px] w-full truncate leading-tight mb-0.5" title="${l.subject}">${l.subject}</div>
                                             <div class="text-[8px] font-bold text-slate-500 dark:text-slate-400 w-full truncate opacity-90 leading-none" title="${subText}">${subText}</div>
                                             ${state.matrixAxis !== 'room' && l.room !== '通常教室' ? `<div class="text-[8px] font-bold text-amber-600 dark:text-amber-400 w-full truncate opacity-90 leading-none mt-0.5" title="${l.room}">📍${l.room}</div>` : ''}
@@ -520,6 +554,48 @@ window.viewStep10 = ()=>{
     } else {
         const fOpts=state.dashView==='class'?classes.map(c=>`<option value="${c}" ${c===state.dashFilter?'selected':''}>${c}</option>`).join(''):(state.teachers||[]).map(t=>`<option value="${t.id}" ${t.id===state.dashFilter?'selected':''}>${t.name}</option>`).join('');
         html+=`<div class="flex justify-between items-center mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 rounded-xl shrink-0 gap-2 flex-wrap shadow-sm"><div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 p-1 rounded-lg border border-slate-200 dark:border-slate-700"><button onclick="actions.setDashView('class')" class="px-4 py-1.5 rounded-md font-black text-xs transition-colors ${state.dashView==='class'?'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm':'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}">クラス別</button><button onclick="actions.setDashView('teacher')" class="px-4 py-1.5 rounded-md font-black text-xs transition-colors ${state.dashView==='teacher'?'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm':'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}">教員別</button></div><select onchange="actions.setDashFilter(this.value)" class="m3-input !py-1.5 !text-sm !w-48 shadow-sm cursor-pointer">${fOpts}</select></div>`;
+        
+        // ★ 時数統計サマリー
+        let classStats = "";
+        if (state.dashView === 'class') {
+            const cls = state.dashFilter;
+            const grade = cls.split('-')[0];
+            let totalNeeded = 0; let totalAssigned = 0; let subStats = [];
+            (state.subjects || []).forEach(s => {
+                let needed = parseInt(s.stdHours?.[grade]) || 0;
+                if (needed === 0) return;
+                let assigned = 0;
+                DAYS.forEach(d => {
+                    PERIODS.forEach(p => {
+                        const ls = state.generatedSchedule?.[d]?.[p] || [];
+                        ls.forEach(l => { if (l.targets?.includes(cls) && l.subject === s.name) assigned++; });
+                    });
+                });
+                totalNeeded += needed; totalAssigned += assigned;
+                subStats.push(`<span class="inline-flex items-center gap-1 ${assigned < needed ? 'text-rose-500 dark:text-rose-400' : (assigned > needed ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400')}"><span class="px-1.5 py-0.5 rounded text-[8px] font-black border leading-none ${getSubColor(s.name)}">${s.name}</span> ${assigned}/${needed}</span>`);
+            });
+            classStats = `<div class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-3 flex flex-col gap-2 shrink-0"><div class="flex items-center gap-3"><span class="text-sm font-black dark:text-slate-200">${cls} 時数進捗</span><span class="text-xs font-bold px-2 py-1 rounded bg-slate-100 dark:bg-slate-900 ${totalAssigned < totalNeeded ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">全体: ${totalAssigned} / ${totalNeeded} コマ</span></div><div class="flex flex-wrap gap-2 text-xs font-bold bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-700/50">${subStats.join('')}</div></div>`;
+        } else if (state.dashView === 'teacher') {
+            const tid = state.dashFilter;
+            const tObj = state.teachers.find(t => t.id === tid);
+            let totalNeeded = getTeacherLoads()[tid] || 0;
+            let totalAssigned = 0; let clsStatsMap = {};
+            DAYS.forEach(d => {
+                PERIODS.forEach(p => {
+                    const ls = state.generatedSchedule?.[d]?.[p] || [];
+                    ls.forEach(l => {
+                        if (l.teacherIds?.includes(tid)) {
+                            totalAssigned++;
+                            l.targets.forEach(tgt => { clsStatsMap[tgt] = (clsStatsMap[tgt] || 0) + 1; });
+                        }
+                    });
+                });
+            });
+            let clsStats = Object.entries(clsStatsMap).map(([tgt, count]) => `<span class="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400"><span class="px-1.5 py-0.5 rounded text-[8px] font-black border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-800 leading-none">${tgt}</span> ${count}コマ</span>`);
+            classStats = `<div class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-3 flex flex-col gap-2 shrink-0"><div class="flex items-center gap-3"><span class="text-sm font-black dark:text-slate-200">${tObj?.name||''} 担当進捗</span><span class="text-xs font-bold px-2 py-1 rounded bg-slate-100 dark:bg-slate-900 ${totalAssigned < totalNeeded ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">全体: ${totalAssigned} / ${totalNeeded} コマ</span></div><div class="flex flex-wrap gap-2 text-xs font-bold bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-700/50">${clsStats.join('')||'<span class="text-slate-400">担当なし</span>'}</div></div>`;
+        }
+        html += classStats;
+        
         html+=`<div class="flex-1 overflow-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm custom-scrollbar p-1 min-h-0 relative"><div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[700px] h-full gap-px bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700">`;
         html+=`<div class="bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-[10px] uppercase dark:text-slate-300">Time</div>${DAYS.map(d=>`<div class="bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-xs py-2 dark:text-slate-300">${d}曜</div>`).join('')}`;
         PERIODS.forEach(p=>{
@@ -546,11 +622,16 @@ window.actions = {
     hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_stable');location.reload();}},
     jumpToResult:()=>{state.currentStep=10;render();},
     
-    // ★ 追加: ダッシュボードタブ切り替え
     setDashTab:(tab)=>{state.dashTab=tab;render();},
     setMatrixAxis:(axis)=>{state.matrixAxis=axis;render();},
-    
-    setDashView:(v)=>{state.dashView=v;render();},
+    setDashView:(v)=>{
+        state.dashView=v;
+        const classes = state.classAssignments ? Object.keys(state.classAssignments) : [];
+        if (v === 'class' && !classes.includes(state.dashFilter) && classes.length > 0) state.dashFilter = classes[0];
+        const teachers = state.teachers || [];
+        if (v === 'teacher' && !teachers.some(t => t.id === state.dashFilter) && teachers.length > 0) state.dashFilter = teachers[0].id;
+        render();
+    },
     setDashFilter:(v)=>{state.dashFilter=v;render();},
     updateMarathon:(k,v)=>{state.marathon[k]=v;render();},
     
@@ -610,7 +691,7 @@ window.actions = {
         overlay.onclick = (e) => { if(e.target === overlay) actions.closeModal(); };
     },
 
-    // ★ セーブ・ロード機能 (10スロット化 & 命名機能)
+    // ★ セーブ・ロード機能 (10スロット化 & 容量スリム化)
     openQuickSaveModal: () => {
         const slots = Array.from({length: 10}, (_, i) => i + 1);
         let html = `
@@ -627,7 +708,7 @@ window.actions = {
                 const raw = localStorage.getItem('tt_v15_save_meta_' + i);
                 if (raw) meta = JSON.parse(raw);
                 if (!meta && localStorage.getItem('tt_v15_save_' + i)) {
-                    meta = { name: "旧バージョンのデータ", time: "" };
+                    meta = { name: "以前のデータ", time: "" };
                 }
             } catch(e) {}
 
@@ -674,12 +755,18 @@ window.actions = {
         const meta = { name: saveName || defaultName, time: `${yy}/${mm}/${dd} ${hh}:${min}` };
         
         try {
-            localStorage.setItem('tt_v15_save_' + s, JSON.stringify(state));
+            // ★ 容量エラー対策：保存するデータを軽量化（数千行のデバッグレポートや不要なキャッシュを削除）
+            const stateToSave = JSON.parse(JSON.stringify(state));
+            stateToSave.reportDetails = {}; 
+            stateToSave.undoStack = [];
+            stateToSave.subjectsUndoStack = [];
+            
+            localStorage.setItem('tt_v15_save_' + s, JSON.stringify(stateToSave));
             localStorage.setItem('tt_v15_save_meta_' + s, JSON.stringify(meta));
             showToast(`スロット ${s} にセーブしました`, "success");
             actions.openQuickSaveModal(); 
         } catch(e) {
-            showToast("容量オーバーのため保存できませんでした。古いスロットを削除するか、JSON出力を利用してください。", "error");
+            showToast("容量オーバーです。古いスロットを削除するかJSON出力を利用してください。", "error");
         }
     },
     quickLoad: (s) => {
@@ -704,7 +791,6 @@ window.actions = {
         actions.runMarathonCycle();
     },
     
-    // ★ 世代数の継ぎ足し機能
     continueMarathon: async function(){
         const addVal = document.getElementById('dash-add-gen')?.value;
         const addGen = addVal ? parseFloat(addVal) : 10;
@@ -761,7 +847,6 @@ window.actions = {
         }
 
         try {
-            // 毎回完全に新しい盤面（null）からスタートさせる (袋小路防止)
             const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state, currentSchedule: null, unassigned: null }) });
             const data = await res.json();
             
@@ -779,7 +864,6 @@ window.actions = {
                     latestRecord.innerText = `未配置 ${data.unassigned.length}`;
                 }
 
-                // 歴代ベストの更新判定
                 if(data.unassigned.length < state.best.unassignedCount) {
                     state.best = {
                         unassignedCount: data.unassigned.length,
@@ -888,8 +972,6 @@ window.actions = {
     }
 };
 
-document.getElementById('btn-next').onclick=()=>{if(state.currentStep===9)actions.startGeneration();else if(state.currentStep<10){state.currentStep++;render();}else actions.exportToSpreadsheet();};
-document.getElementById('btn-prev').onclick=()=>{if(state.currentStep>1){state.currentStep--;render();}};
 document.addEventListener('DOMContentLoaded',load);
 </script>
 <div id="allocation-modal-container"></div>
