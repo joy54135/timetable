@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.2</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.3</title>
 <script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style type="text/tailwindcss">
 @layer utilities {
@@ -22,6 +22,10 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .bg-stripe-ng { background-color: #fff1f2; background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(225,29,72,0.1) 5px, rgba(225,29,72,0.1) 10px); }
 .bg-stripe-global { background-color: #f8fafc; background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(148,163,184,0.15) 5px, rgba(148,163,184,0.15) 10px); }
 .bg-out-time { background-color: #e2e8f0; }
+
+/* スライドインアニメーション (レポート用) */
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.slide-in-right { animation: slideInRight 0.3s ease-out forwards; }
 }
 </style>
 </head>
@@ -31,7 +35,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
     <header class="flex items-center justify-between mb-3 shrink-0 px-2">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (15.2 AI ScoreCard)</p></div>
+            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (15.3 Ultimate Matrix & Report)</p></div>
         </div>
         <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
             <button onclick="actions.openQuickSaveModal()" class="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg shadow-sm transition-colors hidden sm:flex items-center gap-1">💾 セーブ＆ロード</button>
@@ -61,8 +65,8 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 </div>
 
 <script>
-// ★ 最新デプロイURL (Ver 15.2 AI ScoreCard & UI Fix)
-var GAS_URL="https://script.google.com/macros/s/AKfycbz2ftHZT3qrDGWqYZf72f1dFKCRmItR_wK5duTQCFi-DN9XOe8J7gg6XyYTjHCaiQJdCw/exec";
+// ★ 最新デプロイURL (Ver 15.3 Ultimate Matrix & Report)
+var GAS_URL="https://script.google.com/macros/s/AKfycbzKisCwNZ6URs8E5N8YztPkpqPv8dEnG81OVSoEmt_J_yAMecWLWO8hMG7yLNNOhWpHYA/exec";
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4,5,6];
 var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室","4. 教員名簿","5. 特殊授業 (分散機能)","6. クラス別担当 (混合・固定)","7. 教員別確認","8. 配置ルール (排他・バッファ)","9. 最終点検","10. 司令塔(ダッシュボード)"];
@@ -120,7 +124,7 @@ window.viewStep2 = ()=>`<div class="flex flex-col items-center justify-center h-
 window.viewStep3 = ()=>{const rmOpts=`<option value="通常教室">通常教室</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}">${r.name}</option>`).join('');return `<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/4 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-1/3 md:h-full"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs">特別教室</h3><button onclick="actions.addRoom()" class="text-[10px] bg-blue-50 text-blue-600 border px-2 py-1 rounded-md font-bold hover:bg-blue-100">+ 追加</button></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1" id="sc-step3-l">${(state.rooms||[]).map((r,i)=>`<div class="flex items-center gap-1 bg-white p-1.5 rounded-lg border shadow-sm"><input type="text" value="${r.name}" onchange="actions.updateRoomName('${r.id}',this.value)" class="flex-1 min-w-0 text-xs font-bold outline-none"><div class="flex items-center gap-0.5 ml-1"><button onclick="actions.updateRoomCapacity('${r.id}',Math.max(1,${r.capacity||1}-1))" class="w-4 h-4 bg-slate-100 rounded text-slate-500 font-black">-</button><input type="number" value="${r.capacity||1}" onchange="actions.updateRoomCapacity('${r.id}',this.value)" min="1" class="w-6 text-xs font-black text-center bg-transparent outline-none"><button onclick="actions.updateRoomCapacity('${r.id}',${r.capacity||1}+1)" class="w-4 h-4 bg-slate-100 rounded text-slate-500 font-black">+</button></div><div class="flex flex-col gap-0.5 ml-1"><button onclick="actions.moveItem('rooms',${i},-1)" class="text-[8px] text-slate-400 hover:text-blue-600 font-black leading-none px-1" ${i===0?'disabled':''}>▲</button><button onclick="actions.moveItem('rooms',${i},1)" class="text-[8px] text-slate-400 hover:text-blue-600 font-black leading-none px-1" ${i===(state.rooms?.length||0)-1?'disabled':''}>▼</button></div><button onclick="actions.removeRoom('${r.id}')" class="text-slate-300 hover:text-rose-500 font-bold px-1">✕</button></div>`).join('')}</div></div><div class="flex-1 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-2/3 md:h-full overflow-hidden"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs">科目時数</h3><button onclick="actions.addSubject('新規教科')" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-md font-bold shadow-sm hover:bg-blue-700">+ 新規教科</button></div><div class="flex-1 overflow-auto custom-scrollbar pr-1 border border-slate-200 rounded-xl bg-white" id="sc-step3-r"><table class="w-full text-xs text-center border-collapse min-w-[700px]"><thead class="sticky top-0 bg-slate-100 z-10 shadow-sm"><tr><th class="p-2 border-r text-left pl-3 w-28">科目名</th><th class="p-2 border-r w-24">教室</th>${GRADES.map(g=>`<th class="p-2 border-r">${g}年</th>`).join('')}<th class="w-16"></th></tr></thead><tbody>${(state.subjects||[]).map((s,i)=>`<tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors"><td class="p-1 border-r"><input type="text" value="${s.name}" onchange="actions.updateSubject('${s.id}','name',this.value)" class="m3-input !p-1.5 w-full font-bold bg-transparent border-transparent shadow-none"></td><td class="p-1 border-r"><select onchange="actions.updateSubject('${s.id}','defaultRoom',this.value)" class="m3-input !p-1.5 text-[10px] w-full bg-transparent border-transparent cursor-pointer shadow-none">${rmOpts.replace(`value="${s.defaultRoom||'通常教室'}"`,`value="${s.defaultRoom||'通常教室'}" selected`)}</select></td>${GRADES.map(g=>`<td class="p-1 border-r"><div class="flex items-center justify-center gap-1"><button onclick="actions.updateSubjectHour('${s.id}',${g},-1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black">-</button><input type="number" value="${s.stdHours?.[g]||0}" onchange="actions.setSubjectHour('${s.id}',${g},this.value)" class="w-6 text-center font-black text-blue-600 bg-transparent outline-none"><button onclick="actions.updateSubjectHour('${s.id}',${g},1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black">+</button></div></td>`).join('')}<td><div class="flex items-center justify-center gap-0.5"><div class="flex flex-col"><button onclick="actions.moveItem('subjects',${i},-1)" class="text-[8px] text-slate-400 hover:text-blue-600 font-black leading-none px-1" ${i===0?'disabled':''}>▲</button><button onclick="actions.moveItem('subjects',${i},1)" class="text-[8px] text-slate-400 hover:text-blue-600 font-black leading-none px-1" ${i===(state.subjects?.length||0)-1?'disabled':''}>▼</button></div><button onclick="actions.removeSubject('${s.id}')" class="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded font-bold transition-colors">✕</button></div></td></tr>`).join('')}</tbody></table></div></div></div>`;};
 window.viewStep4 = ()=>{if(!state.selectedTeacherId&&state.teachers?.length>0)state.selectedTeacherId=state.teachers[0].id;const t=safeFind(state.teachers,'id',state.selectedTeacherId);const hrOpts=`<option value="">専科等</option>`+GRADES.map(g=>Array.from({length:parseInt(state.grades?.[g])||1},(_,i)=>`<option value="${g}-${i+1}">${g}年${i+1}組</option>`).join('')).join('');return `<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/2 flex flex-col bg-slate-50 border p-3 h-1/2 md:h-full rounded-2xl"><div class="flex justify-between items-center mb-2"><h3 class="font-black text-xs">教員名簿</h3><div class="flex gap-1.5"><button onclick="actions.openBulk('teachers')" class="text-[10px] bg-white border px-2 py-1 rounded font-bold hover:bg-slate-50">一括貼付</button><button onclick="actions.addTeacher()" class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded font-bold hover:bg-blue-700">+ 追加</button></div></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1" id="sc-step4-l">${(state.teachers||[]).map((tc,i)=>{const isSel=String(tc.id)===String(state.selectedTeacherId),maxH=tc.maxHours||24;return `<div onclick="actions.handleTeacherClick('${tc.id}')" class="flex items-center gap-1.5 p-1.5 md:p-2 rounded-xl border shadow-sm cursor-pointer transition-all ${isSel?'bg-indigo-50 border-indigo-400':'bg-white border-slate-200 hover:bg-slate-50'}"><input type="text" value="${tc.name}" onchange="actions.updateTeacher('${tc.id}','name',this.value)" onclick="event.stopPropagation()" class="flex-1 text-xs font-bold outline-none bg-transparent px-1 truncate"><select onchange="actions.updateTeacherHomeroom('${tc.id}',this.value)" class="text-[9px] font-bold py-1 px-0.5 bg-white border rounded outline-none max-w-[70px]" onclick="event.stopPropagation()">${tc.homeroom?hrOpts.replace(`value="${tc.homeroom}"`,`value="${tc.homeroom}" selected`):hrOpts}</select><div class="flex items-center gap-0.5 ml-1" onclick="event.stopPropagation()"><button onclick="actions.updateTeacher('${tc.id}','maxHours',Math.max(0,${maxH}-1))" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center">-</button><input type="number" value="${maxH}" onchange="actions.updateTeacher('${tc.id}','maxHours',parseInt(this.value)||0)" class="w-6 text-center text-xs font-black text-blue-600 bg-transparent outline-none"><button onclick="actions.updateTeacher('${tc.id}','maxHours',${maxH}+1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center">+</button></div><div class="flex flex-col gap-0.5 ml-1" onclick="event.stopPropagation()"><button onclick="actions.moveItem('teachers',${i},-1)" class="text-[8px] text-slate-400 hover:text-blue-600 font-black leading-none px-1" ${i===0?'disabled':''}>▲</button><button onclick="actions.moveItem('teachers',${i},1)" class="text-[8px] text-slate-400 hover:text-blue-600 font-black leading-none px-1" ${i===(state.teachers?.length||0)-1?'disabled':''}>▼</button></div><button onclick="event.stopPropagation();actions.removeTeacher('${tc.id}')" class="text-slate-300 hover:text-rose-500 px-1 font-bold">✕</button></div>`;}).join('')}</div></div><div class="flex-1 flex flex-col bg-slate-50 border p-4 h-1/2 md:h-full items-center rounded-2xl"><h3 class="font-black text-sm mb-1">不可時間</h3>${t?`<p class="text-[10px] text-slate-500 mb-4 text-center font-bold text-blue-600">${t.name}先生の不可枠(✕)</p>${buildGrid(t.ngTimes,state.globalBlocks,`actions.toggleTeacherNG('${t.id}','__KEY__')`)}`:'<div class="flex-1 flex items-center justify-center text-slate-400 text-sm font-bold">教員を選択</div>'}</div></div>`;};
 
-// ★ Step 5: 特殊授業 (UIレイアウト崩れ修正)
+// Step 5: 特殊授業 (UIレイアウト崩れ修正)
 window.viewStep5 = ()=>{
     const sOpts=(state.subjects||[]).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
     const rOpts=`<option value="通常教室">通常教室</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
@@ -292,50 +296,29 @@ window.viewStep9 = ()=>{
     <div class="flex-1 bg-slate-900 rounded-[32px] p-6 flex flex-col overflow-hidden shadow-xl relative"><div class="flex items-center justify-between mb-4 shrink-0"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full animate-pulse ${totalErr===0&&errors.length===0?'bg-green-500':'bg-red-500'}"></div><h4 class="text-sm font-black text-white">プレフライト・マトリックス</h4></div><span class="text-[10px] text-slate-400">不足: 赤(-) / 超過: 黄(+) / 一致: 緑(✓)</span></div><div class="flex-1 overflow-auto custom-scrollbar rounded-xl border border-slate-700 bg-white"><table class="w-full text-[10px] text-center border-collapse whitespace-nowrap"><thead class="bg-slate-100 border-b border-slate-200 sticky top-0 z-10"><tr><th class="p-2 border-r border-slate-200">クラス</th>${uSubs.map(s=>`<th class="p-2 border-r border-slate-200 font-black">${s}</th>`).join('')}<th class="p-2 font-black text-slate-500">計(実/必)</th></tr></thead><tbody>${classes.map(cls=>{let cn=0,ca=0;return `<tr class="border-b border-slate-100 hover:bg-slate-50"><td class="p-1.5 bg-slate-50 font-bold border-r border-slate-200">${cls}</td>${uSubs.map(s=>{let n=classNeeds[`${cls}-${s}`]||0,a=classAssigned[`${cls}-${s}`]||0;cn+=n;ca+=a;let d=a-n,c='text-slate-300',t='-';if(n>0||a>0){if(d===0){c='bg-green-50 text-green-500 font-bold';t='✓';}else if(d<0){c='bg-red-100 text-red-600 font-black';t=d;totalErr++;}else{c='bg-yellow-100 text-yellow-600 font-black';t='+'+d;totalErr++;}}return `<td class="p-1 border-r border-slate-100 ${c}">${t}</td>`;}).join('')}<td class="p-1.5 bg-slate-50 ${ca-cn===0?'text-slate-400':(ca-cn<0?'text-red-500 font-bold':'text-yellow-500 font-bold')}">${ca}/${cn}</td></tr>`;}).join('')}</tbody></table></div>${totalErr>0?(()=>{errors.push(`[コマ数不整合] 計 ${totalErr} 箇所`);return '';})():''}<div class="mt-4 shrink-0 flex flex-col gap-3 items-center">${errors.length>0?`<div class="p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-[10px] text-red-300 font-bold space-y-1 overflow-y-auto max-h-[100px] w-full">${errors.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`:'<div class="text-center text-green-400 font-bold text-xs w-full">All Checks Passed. AI生成の準備が整いました。</div>'}${state.generatedSchedule?`<button onclick="actions.jumpToResult()" class="px-6 py-3 bg-indigo-100 text-indigo-800 border border-indigo-300 rounded-xl font-black shadow-sm hover:bg-indigo-200 transition-colors flex items-center gap-2">▶ 生成済みの結果を見る <span class="text-[9px] bg-white px-1.5 py-0.5 rounded text-indigo-500">再計算なし</span></button>`:''}</div></div></div>`;
 };
 
-// ★ Step 10: ダッシュボード (可視化レイヤー & AIスコアカード表示搭載)
+// ★ Step 10: ダッシュボード (Ver 15.3 Ultimate Matrix & Report)
 window.viewStep10 = ()=>{
     if(!state.generatedSchedule&&(!state.unassigned||state.unassigned.length===0))return '<div class="flex items-center justify-center h-full flex-col gap-4 text-slate-400 font-black">AI生成を開始してください</div>';
     
     let html=`<div class="flex flex-col flex-1 overflow-hidden min-h-0">`;
     
-    // 司令塔（マラソン）パネル
-    html+=`<div class="bg-slate-800 text-white p-3 rounded-2xl mb-2 flex flex-wrap gap-3 items-center shadow-md shrink-0 z-10 relative"><span class="text-xs font-black tracking-widest text-indigo-300">🕹️ 司令塔</span><select id="dash-marathon-target" class="text-[10px] bg-slate-700 border-slate-600 rounded px-2 py-1 outline-none font-bold"><option value="0">目標: 未配置0</option><option value="1">目標: 未配置1以下</option><option value="3">目標: 未配置3以下</option></select><select id="dash-marathon-max" class="text-[10px] bg-slate-700 border-slate-600 rounded px-2 py-1 outline-none font-bold"><option value="30">最大30回</option><option value="50">最大50回</option><option value="100">最大100回</option><option value="9999">無制限</option></select><label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="dash-marathon-ignore" class="w-3 h-3 text-indigo-500" checked><span class="text-[10px] font-bold">エラー無視で続行</span></label><button onclick="actions.startDashMarathon()" class="ml-auto bg-indigo-500 hover:bg-indigo-600 text-white font-black text-xs px-4 py-1.5 rounded-lg shadow-sm transition-colors">🚀 マラソン開始</button></div>`;
-
-    // ★ Ver 15.2 AI自己採点レポート (スコアカード) 表示
-    if (state.scoreCard) {
-        const sc = state.scoreCard;
-        html += `<div class="bg-slate-800 text-white p-4 rounded-2xl mb-2 shadow-md shrink-0 flex flex-col gap-3 relative z-10">
-            <div class="flex items-center justify-between border-b border-slate-700 pb-2">
-                <h3 class="text-sm font-black flex items-center gap-2">📊 AI自己採点レポート</h3>
-                <div class="flex gap-4">
-                    <div class="text-center"><span class="text-[9px] text-slate-400 block font-bold">基礎条件</span><span class="text-lg font-black text-emerald-400 leading-none">${sc.basic?.score||0}<span class="text-xs">%</span></span></div>
-                    <div class="text-center"><span class="text-[9px] text-slate-400 block font-bold">詳細ルール</span><span class="text-lg font-black ${sc.advanced?.score===100?'text-emerald-400':'text-amber-400'} leading-none">${sc.advanced?.score||0}<span class="text-xs">%</span></span></div>
-                </div>
+    // 司令塔（マラソン）パネル + スコアカード・ステータスバー (1行に統合)
+    html+=`<div class="bg-slate-800 text-white p-2 md:p-3 rounded-xl mb-2 flex flex-wrap gap-2 md:gap-3 items-center shadow-md shrink-0 z-10 relative">
+        <span class="text-xs font-black tracking-widest text-indigo-300">🕹️ 司令塔</span>
+        <select id="dash-marathon-target" class="text-[10px] bg-slate-700 border-slate-600 rounded px-2 py-1 outline-none font-bold"><option value="0">目標: 未配置0</option><option value="1">目標: 未配置1以下</option><option value="3">目標: 未配置3以下</option></select>
+        <select id="dash-marathon-max" class="text-[10px] bg-slate-700 border-slate-600 rounded px-2 py-1 outline-none font-bold"><option value="30">最大30回</option><option value="50">最大50回</option><option value="100">最大100回</option><option value="9999">無制限</option></select>
+        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="dash-marathon-ignore" class="w-3 h-3 text-indigo-500" checked><span class="text-[10px] font-bold">エラー無視で続行</span></label>
+        <button onclick="actions.startDashMarathon()" class="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-[10px] md:text-xs px-3 md:px-4 py-1.5 rounded-lg shadow-sm transition-colors">🚀 マラソン開始</button>
+        ${state.scoreCard ? `
+        <div class="ml-auto flex items-center gap-3 bg-slate-700 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-slate-600 transition-colors border border-slate-600 shadow-inner" onclick="document.getElementById('scorecard-modal').classList.remove('hidden')">
+            <span class="text-[10px] font-black">📊 達成度:</span>
+            <div class="flex gap-2 text-[10px] font-bold">
+                <span class="text-emerald-400">基礎 ${state.scoreCard.basic?.score||0}%</span>
+                <span class="${state.scoreCard.advanced?.score===100?'text-emerald-400':'text-amber-400'}">詳細 ${state.scoreCard.advanced?.score||0}%</span>
             </div>
-            <div class="flex flex-col md:flex-row gap-4">
-                <div class="flex-1">
-                    <h4 class="text-[10px] text-slate-400 font-bold mb-1 border-b border-slate-700 pb-1">【基礎条件 (Step 1-7)】</h4>
-                    <ul class="text-[10px] space-y-1 mt-1 font-bold">
-                        ${(sc.basic?.details||[]).map(d => `<li class="flex gap-1.5"><span class="${d.includes('未配置')?'text-amber-400':'text-emerald-400'}">${d.includes('未配置')?'⚠️':'✅'}</span> <span class="text-slate-200">${d}</span></li>`).join('')}
-                    </ul>
-                </div>
-                <div class="flex-[2]">
-                    <h4 class="text-[10px] text-slate-400 font-bold mb-1 border-b border-slate-700 pb-1">【詳細ルール (Step 8)】</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-[10px] mt-1">
-                        ${Object.values(sc.advanced?.rules||{}).map(r => `
-                            <div class="flex flex-col bg-slate-700/30 p-1.5 rounded">
-                                <div class="flex justify-between items-center mb-0.5">
-                                    <span class="text-slate-300 font-bold">${r.name}</span>
-                                    <span class="font-black ${r.score===100?'text-emerald-400':(r.score>0?'text-amber-400':'text-rose-400')}">${r.score}%</span>
-                                </div>
-                                ${r.failures?.length > 0 ? `<div class="text-amber-300/90 text-[8px] leading-tight line-clamp-2" title="${r.failures.join(' / ')}">⚠️ ${r.failures.slice(0,2).join(', ')}${r.failures.length>2?'...':''}</div>` : `<div class="text-emerald-500/80 text-[8px] font-bold">✅ 違反なし</div>`}
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        </div>`;
-    }
+            <span class="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded flex items-center gap-1">レポートを開く <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+        </div>` : ''}
+    </div>`;
 
     html+=`<div class="flex justify-between items-center mb-2 shrink-0 flex-wrap gap-2"><div class="flex bg-slate-200 p-1 rounded-xl"><button onclick="actions.setDashTab('matrix')" class="px-4 py-2 rounded-lg font-black text-xs ${state.dashTab!=='individual'?'bg-white shadow-sm text-indigo-600':'text-slate-500 hover:bg-slate-300'} transition-all">全校マトリックス</button><button onclick="actions.setDashTab('individual')" class="px-4 py-2 rounded-lg font-black text-xs ${state.dashTab==='individual'?'bg-white shadow-sm text-indigo-600':'text-slate-500 hover:bg-slate-300'} transition-all">個別詳細プレビュー</button></div><div class="flex gap-2 ml-auto">
     ${state.best && state.best.unassignedCount < (state.unassigned?.length||999) ? `<button onclick="actions.restoreBest()" class="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-3 py-1.5 rounded-lg font-bold hover:bg-amber-200 transition-colors shadow-sm">🏆 歴代ベスト(未配置: ${state.best.unassignedCount})を復元</button>` : ''}
@@ -482,6 +465,47 @@ window.viewStep10 = ()=>{
         }).join('')).join('')}</div></div>`;
     }
     
+    // ★ Ver 15.3 スライドイン詳細レポート（モーダル）
+    if (state.scoreCard) {
+        const sc = state.scoreCard;
+        html += `<div id="scorecard-modal" class="fixed inset-0 z-[300] hidden flex justify-end bg-slate-900/60 backdrop-blur-sm transition-opacity">
+            <div class="w-full md:w-[450px] h-full bg-slate-800 text-white shadow-2xl flex flex-col slide-in-right">
+                <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900 shrink-0">
+                    <h3 class="text-lg font-black flex items-center gap-2">📊 AI自己採点レポート</h3>
+                    <button onclick="document.getElementById('scorecard-modal').classList.add('hidden')" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 hover:bg-rose-500 transition-colors text-white font-black">✕</button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
+                    <div>
+                        <div class="flex justify-between items-end border-b border-slate-700 pb-2 mb-3">
+                            <h4 class="text-sm font-bold text-slate-300">【基礎条件 (Step 1-7)】</h4>
+                            <span class="text-3xl font-black text-emerald-400 leading-none">${sc.basic?.score||0}<span class="text-sm">%</span></span>
+                        </div>
+                        <ul class="text-xs space-y-2 font-bold bg-slate-700/30 p-3 rounded-xl border border-slate-700/50">
+                            ${(sc.basic?.details||[]).map(d => `<li class="flex gap-2"><span class="${d.includes('未配置')?'text-amber-400':'text-emerald-400'} shrink-0">${d.includes('未配置')?'⚠️':'✅'}</span> <span class="text-slate-200 leading-relaxed">${d}</span></li>`).join('')}
+                        </ul>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-end border-b border-slate-700 pb-2 mb-3">
+                            <h4 class="text-sm font-bold text-slate-300">【詳細ルール (Step 8)】</h4>
+                            <span class="text-3xl font-black ${sc.advanced?.score===100?'text-emerald-400':'text-amber-400'} leading-none">${sc.advanced?.score||0}<span class="text-sm">%</span></span>
+                        </div>
+                        <div class="space-y-3">
+                            ${Object.values(sc.advanced?.rules||{}).map(r => `
+                                <div class="bg-slate-700/30 p-3 rounded-xl border border-slate-700/50">
+                                    <div class="flex justify-between items-start mb-2 border-b border-slate-600/50 pb-2">
+                                        <span class="text-slate-200 font-bold text-xs">${r.name}</span>
+                                        <span class="font-black text-lg leading-none ${r.score===100?'text-emerald-400':(r.score>0?'text-amber-400':'text-rose-400')}">${r.score}%</span>
+                                    </div>
+                                    ${r.failures?.length > 0 ? `<div class="text-amber-300/90 text-[11px] font-bold leading-relaxed space-y-1.5 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">${r.failures.map(f=>`<div class="bg-slate-800/50 px-2 py-1.5 rounded">⚠️ ${f}</div>`).join('')}</div>` : `<div class="text-emerald-500/80 text-xs font-bold flex items-center gap-1">✅ 違反なし（100% 遵守）</div>`}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }
+
     if(state.selectedUnassignedIdx!==null){html+=`<div class="absolute inset-x-0 bottom-4 pointer-events-none flex justify-center z-50"><div class="bg-rose-600 text-white px-6 py-2 rounded-full font-black text-xs shadow-lg animate-pulse border border-rose-400">配置したい枠をタップしてください</div></div>`;}
     html+=`</div>`;return html;
 };
