@@ -1,14 +1,14 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.59 (Ultimate Safe & Fully Restored)
-  Description: Step8全項目復活, 手動配置UI, 同日禁止ルール, JSON読込復元, 自己修復機能
+  Version: 13.60 (Dynamic Priority & Self-Healing)
+  Description: 全10ルールの高低スイッチ、自己修復機能、手動配置UI、超軽量化コンポーネント
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.59</title>
+    <title>Smart TimeTable - Ver 13.60</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -44,7 +44,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.59 Fully Restored)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.60 Dynamic Priority)</p>
             </div>
         </div>
         <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
@@ -52,7 +52,7 @@
             <button onclick="actions.quickLoad()" class="text-xs font-bold text-amber-600 hover:text-amber-800 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg shadow-sm transition-colors hidden sm:block">📤 復元</button>
             <button onclick="actions.exportData()" class="text-xs font-bold text-slate-500 hover:text-blue-600 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm transition-colors hidden md:block">JSON出力</button>
             <button onclick="actions.importData()" class="text-xs font-bold text-slate-500 hover:text-blue-600 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm transition-colors hidden md:block">JSON読込</button>
-            <button onclick="actions.resetData()" class="text-xs font-bold text-rose-500 hover:text-rose-700 px-3 py-1.5 bg-rose-50 border border-rose-100 rounded-lg transition-colors">リセット</button>
+            <button onclick="actions.hardReset()" class="text-xs font-bold text-rose-500 hover:text-rose-700 px-3 py-1.5 bg-rose-50 border border-rose-100 rounded-lg transition-colors">リセット</button>
         </div>
     </header>
 
@@ -85,7 +85,7 @@
     // ==========================================
     // 1. 初期化・定数
     // ==========================================
-    var GAS_URL = "https://script.google.com/macros/s/AKfycbzXZijD7M8olSXogY4F1EvFc0A2S7y_kUOqVFemhEsG93OyFBGg7eSUPyfpu7O-s5yJ2g/exec";
+    var GAS_URL = "https://script.google.com/macros/s/AKfycbyEROW_j5zbRv9KISoud97WwbIOPz6qnXU95wf8uQD4o3-g3qN7BwgwM70OYxtwbKIV8A/exec";
     var GRADES = [1, 2, 3, 4, 5, 6];
     var DAYS = ['月', '火', '水', '木', '金'];
     var PERIODS = [1, 2, 3, 4, 5, 6];
@@ -93,7 +93,7 @@
 
     var state = {
         currentStep: 1, grades: {1:3, 2:3, 3:3, 4:3, 5:3, 6:3}, periods: {}, rooms: [], subjects: [], teachers: [], globalBlocks: {}, specialBlocks: [], classAssignments: {},
-        advancedRules: {}, generatedSchedule: null, unassigned: [], reportDetails: {}, dashView: 'class', dashFilter: '1-1', relayCount: 0, maxRelayCount: 0, 
+        advancedRules: { priorities: {} }, generatedSchedule: null, unassigned: [], reportDetails: {}, dashView: 'class', dashFilter: '1-1', relayCount: 0, maxRelayCount: 0, 
         selectedTeacherId: null, editingTeacherNameId: null, selectedDashCell: null, selectedUnassignedIdx: null, subjectsUndoStack: [], undoStack: []
     };
 
@@ -102,6 +102,7 @@
     function safeFind(arr, key, val) { return (arr||[]).find(x => x[key] === val); }
     function safeFilter(arr, key, val) { return (arr||[]).filter(x => x[key] !== val); }
 
+    // ★ データ自己修復（クレンジング）
     function forceInitState() {
         if (!state.periods) state.periods = {};
         GRADES.forEach(g => { if (!state.periods[g]) state.periods[g] = {月:5,火:5,水:4,木:5,金:5}; });
@@ -111,10 +112,8 @@
         if (!state.classAssignments) state.classAssignments = {};
         GRADES.forEach(g => { for(let i=1; i<=(parseInt(state.grades[g])||1); i++) { let c = `${g}-${i}`; if(!state.classAssignments[c]) state.classAssignments[c] = { homeroom:'', overrides:{} }; } });
         
-        // ★ ルールの自己修復（欠落項目の補完）
         if (!state.advancedRules) state.advancedRules = {};
-        const dr = { considerSpecialistTimes: true, limitContinuousToSpecificPeriods: true, limitOneSubjectPerDayStrict: true, limitOneSubjectPerDay: true, continuousClasses: [], avoidSpecificTimes: [], amPrioritySubjects: [], lastPeriodSubjects: [] };
-        for (let k in dr) { if (state.advancedRules[k] === undefined) state.advancedRules[k] = dr[k]; }
+        if (!state.advancedRules.priorities) state.advancedRules.priorities = {};
     }
 
     function load() {
@@ -179,7 +178,10 @@
         const content = document.getElementById('step-content');
         if (content) {
             try { content.innerHTML = window[`viewStep${state.currentStep}`](); } 
-            catch(e) { content.innerHTML = `<div class="p-8 text-center flex flex-col items-center justify-center h-full"><p class="text-red-500 font-bold mb-4">データ不整合による描画エラーが発生しました。</p><button onclick="actions.resetData()" class="px-6 py-3 bg-rose-500 text-white rounded-xl font-black shadow-lg hover:bg-rose-600">初期化して自己修復する</button></div>`; console.error(e); }
+            catch(e) { 
+                content.innerHTML = `<div class="p-8 text-center flex flex-col items-center justify-center h-full"><p class="text-red-500 font-bold mb-4">データ不整合による描画エラーが発生しました。</p><button onclick="actions.hardReset()" class="px-6 py-3 bg-rose-500 text-white rounded-xl font-black shadow-lg hover:bg-rose-600 transition-colors">完全初期化して自己修復する</button><p class="text-[10px] text-slate-400 mt-4">${e.message}</p></div>`; 
+                console.error(e); 
+            }
         }
         document.getElementById('allocation-modal-container').innerHTML = renderAllocationModal();
         setTimeout(() => { Object.keys(scrollPos).forEach(id => { const el = document.getElementById(id); if(el){ el.scrollTop = scrollPos[id].t; el.scrollLeft = scrollPos[id].l; } }); }, 0);
@@ -241,28 +243,31 @@
         return `<div class="flex flex-col h-full overflow-hidden"><div class="mb-4 shrink-0 flex justify-between items-center"><h2 class="text-xl font-black">7. 教員別 担当確認</h2><span class="text-xs font-bold text-slate-500 hidden md:inline">※修正は「6. クラス別 担当割り当て」で行ってください</span></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 content-start" id="sc-step7">${(state.teachers||[]).map(t=>{ const d = details[t.id]||{load:0,items:[]}, max = t.maxHours||24, isOver = d.load>max; return `<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3"><div class="flex justify-between items-center"><span class="font-black text-sm text-blue-900">${t.name}</span><span class="text-xs font-black ${isOver?'text-rose-500':'text-slate-500'}">${d.load} / ${max} コマ</span></div><div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div class="h-full rounded-full transition-all duration-300 ${isOver?'bg-rose-500':'bg-blue-500'}" style="width: ${Math.min(100,(d.load/max)*100)}%"></div></div><div class="flex flex-wrap gap-1.5 mt-1">${d.items.length===0?'<span class="text-xs text-slate-400 font-bold">担当なし</span>':d.items.map(item=>`<span class="px-2 py-1 rounded text-[10px] font-bold ${item.isSp?'bg-indigo-50 text-indigo-700 border border-indigo-200':'bg-slate-50 text-slate-600 border border-slate-200'}">${item.target} ${item.subject} (${item.hours})</span>`).join('')}</div></div>`; }).join('')}</div></div>`;
     };
 
-    // ★ 文字数圧縮した共通コンポーネント化で全項目を復活
+    // ★ Step 8 超軽量・全10項目コンポーネント化
     window.viewStep8 = () => {
-        const uSubs = Array.from(new Set((state.subjects||[]).map(s=>s.name))), rules = state.advancedRules || {};
+        const uSubs = Array.from(new Set((state.subjects||[]).map(s=>s.name))), rules = state.advancedRules || {}, prio = rules.priorities || {};
         const sOpts = `<option value="">- 教科 -</option>` + uSubs.map(s=>`<option value="${s}">${s}</option>`).join('');
-        const mkList = (k, lbl) => `<div class="p-4 bg-white rounded-xl border border-emerald-100 shadow-sm"><div class="text-sm font-black mb-2 text-slate-800">${lbl}</div><div class="flex gap-2 mb-2"><select id="sel-${k}" class="m3-input !w-auto shadow-sm">${sOpts}</select><button onclick="actions.addSimpleRule('${k}', document.getElementById('sel-${k}').value)" class="bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors">+ 追加</button></div><div class="flex flex-wrap gap-2">${(rules[k]||[]).length>0 ? rules[k].map((v,i)=>`<span class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 py-1 rounded-lg text-xs font-black flex items-center gap-1 shadow-sm">${v}<button onclick="actions.removeSimpleRule('${k}', ${i})" class="text-red-400 hover:text-red-600 transition-colors ml-1">✕</button></span>`).join('') : '<span class="text-[10px] text-slate-400 font-bold">未登録</span>'}</div></div>`;
+        const gOpts = `<option value="全学年">全学年</option>` + GRADES.map(g=>`<option value="${g}年生">${g}年</option>`).join('');
+        const dOpts = `<option value="">- 曜日 -</option>` + DAYS.map(d=>`<option value="${d}">${d}曜</option>`).join('');
+        const pOpts = `<option value="">- 限 -</option>` + PERIODS.map(p=>`<option value="${p}">${p}限</option>`).join('');
 
-        return `<div class="flex flex-col h-full overflow-y-auto custom-scrollbar pr-4 space-y-6 pb-10" id="sc-step8">
-            <div><div class="flex items-center gap-3 mb-4"><span class="bg-rose-100 text-rose-700 font-black text-[10px] px-3 py-1 rounded-full shadow-sm">優先：高(厳守)</span><h3 class="text-lg font-black text-rose-900">1. 絶対に守らなければならない掟</h3></div>
-            <div class="bg-rose-50/30 border border-rose-100 rounded-[24px] p-5 shadow-sm space-y-4">
-                <label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-200 hover:shadow-md transition-all"><div class="flex flex-col"><span class="text-sm font-black text-slate-800">専科等教員の勤務可能時間を厳密に考慮する</span><p class="text-[10px] font-bold text-rose-600">※Step 4で設定した教員の✕（不可枠）には絶対に授業を入れません</p></div><input type="checkbox" ${rules.considerSpecialistTimes!==false?'checked':''} onchange="actions.setRule('considerSpecialistTimes', this.checked)" class="w-6 h-6 rounded text-rose-600"></label>
-                <label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-200 hover:shadow-md transition-all"><div class="flex flex-col"><span class="text-sm font-black text-slate-800">1クラス時数が5時間以下の教科は同日に入れない</span><p class="text-[10px] font-bold text-rose-600">※同じ日に同じ教科が重なることを物理的に禁止します</p></div><input type="checkbox" ${rules.limitOneSubjectPerDayStrict!==false?'checked':''} onchange="actions.setRule('limitOneSubjectPerDayStrict', this.checked)" class="w-6 h-6 rounded text-rose-600"></label>
-                <div class="p-4 bg-white rounded-xl border border-rose-100"><div class="text-sm font-black mb-2 text-slate-800">連続授業（ニコイチ）の登録</div><div class="flex gap-2 mb-3"><select id="r-cont-g" class="m3-input !w-auto shadow-sm"><option value="全学年">全学年</option>${GRADES.map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select><select id="r-cont-s" class="m3-input !w-auto shadow-sm">${sOpts}</select><button onclick="actions.addContinuousClass()" class="bg-rose-600 text-white px-4 py-1.5 rounded-lg text-xs font-black hover:bg-rose-700 transition-colors">+ 追加</button></div><div class="flex flex-wrap gap-2">${(rules.continuousClasses||[]).length>0 ? rules.continuousClasses.map((c,i)=>`<span class="bg-rose-50 border border-rose-200 text-rose-800 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 font-black shadow-sm">${c.grade} ${c.subject}<button onclick="actions.removeContinuousClass(${i})" class="text-red-400 hover:text-red-600 transition-colors">✕</button></span>`).join('') : '<span class="text-xs text-slate-400 font-bold">未登録</span>'}</div></div>
-                <label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-100"><span class="text-sm font-bold text-slate-700">連続授業を「1-2限, 3-4限, 5-6限」のペア枠に限定する</span><input type="checkbox" ${rules.limitContinuousToSpecificPeriods!==false?'checked':''} onchange="actions.setRule('limitContinuousToSpecificPeriods', this.checked)" class="w-5 h-5 rounded text-rose-600"></label>
-            </div></div>
-            <div><div class="flex items-center gap-3 mb-4"><span class="bg-emerald-100 text-emerald-700 font-black text-[10px] px-3 py-1 rounded-full shadow-sm">優先：低（努力義務）</span><h3 class="text-lg font-black text-emerald-900">2. 時間帯の最適化（ソフト制約）</h3></div>
-            <div class="bg-emerald-50/30 border border-emerald-100 rounded-[24px] p-5 shadow-sm space-y-4">
-                <label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-emerald-200 hover:shadow-md transition-all"><div class="flex flex-col"><span class="text-sm font-black text-slate-800">1日1教科（分散）ルール</span><p class="text-[10px] font-bold text-emerald-600">※時数6時間以上の教科において、同日に入るのをなるべく避けます</p></div><input type="checkbox" ${rules.limitOneSubjectPerDay!==false?'checked':''} onchange="actions.setRule('limitOneSubjectPerDay', this.checked)" class="w-6 h-6 rounded text-emerald-600"></label>
-                ${mkList('amPrioritySubjects', '午前に優先して配置する教科')}
-                ${mkList('lastPeriodSubjects', '最終コマに優先して配置する教科 (例: 総合, クラブ)')}
-                <div class="p-4 bg-white rounded-xl border border-emerald-100 shadow-sm"><div class="text-sm font-black mb-2 text-slate-800">特定の時間帯を避ける教科 (例: 午後の体育)</div><div class="flex flex-wrap gap-2 mb-3 items-center"><select id="r-av-g" class="m3-input !w-auto shadow-sm"><option value="全学年">全学年</option>${GRADES.map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select><select id="r-av-s" class="m3-input !w-auto shadow-sm">${sOpts}</select><select id="r-av-p" class="m3-input !w-auto shadow-sm">${PERIODS.map(p=>`<option value="${p}">${p}限</option>`).join('')}</select><button onclick="actions.addAvoidTime()" class="bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors">+ 追加</button></div><div class="flex flex-wrap gap-2">${(rules.avoidSpecificTimes||[]).length>0 ? rules.avoidSpecificTimes.map((a,i)=>`<span class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 font-black shadow-sm">${a.grade} ${a.subject} (${a.period}限)<button onclick="actions.removeAvoidTime(${i})" class="text-red-400 hover:text-red-600 ml-1 transition-colors">✕</button></span>`).join('') : '<span class="text-[10px] text-slate-400 font-bold">未登録</span>'}</div></div>
-            </div></div>
-        </div>`;
+        const mkPrio = (k, def) => { const v = prio[k] || def; return `<select onchange="actions.setPriority('${k}', this.value)" class="ml-auto text-[10px] font-black p-1.5 rounded-lg border outline-none cursor-pointer ${v==='high'?'bg-rose-50 text-rose-700 border-rose-200':'bg-emerald-50 text-emerald-700 border-emerald-200'}"><option value="high" ${v==='high'?'selected':''}>優先:高(厳守)</option><option value="low" ${v==='low'?'selected':''}>優先:低(努力)</option></select>`; };
+        const mkAdd = (k, t) => { let h = `<div class="flex gap-2 mb-2 items-center flex-wrap">`; if(t.includes('g')) h += `<select id="a-g-${k}" class="m3-input !w-auto shadow-sm">${gOpts}</select>`; if(t.includes('s')) h += `<select id="a-s-${k}" class="m3-input !w-auto shadow-sm">${sOpts}</select>`; if(t.includes('d')) h += `<select id="a-d-${k}" class="m3-input !w-auto shadow-sm">${dOpts}</select>`; if(t.includes('p')) h += `<select id="a-p-${k}" class="m3-input !w-auto shadow-sm">${pOpts}</select>`; return h + `<button onclick="actions.addRuleArr('${k}', '${t}')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-colors shrink-0 shadow-sm">+ 追加</button></div>`; };
+        const mkTags = (k, t) => { const arr = rules[k] || []; if(arr.length === 0) return '<span class="text-[10px] text-slate-400 font-bold">未登録</span>'; return `<div class="flex flex-wrap gap-1.5">` + arr.map((item, i) => { let txt = []; if(t.includes('g')) txt.push(item.grade); if(t.includes('s')) txt.push(item.subject); if(t.includes('d')) txt.push(item.day+'曜'); if(t.includes('p')) txt.push(item.period+'限'); return `<span class="bg-white border border-slate-200 text-slate-700 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 shadow-sm">${txt.join(' ')}<button onclick="actions.removeRuleArr('${k}', ${i})" class="text-red-400 hover:text-red-600 ml-1">✕</button></span>`; }).join('') + `</div>`; };
+        const mkCard = (key, title, desc, def, type = null) => `<div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3 transition-all hover:shadow-md"><div class="flex justify-between items-start gap-2"><div class="flex flex-col"><span class="text-sm font-black text-slate-800">${title}</span><span class="text-[9px] font-bold text-slate-500 mt-0.5">${desc}</span></div>${mkPrio(key, def)}</div>${type ? `<div class="mt-1 p-3 bg-slate-50/50 rounded-xl border border-slate-100">${mkAdd(key, type)}${mkTags(key, type)}</div>` : ''}</div>`;
+
+        return `<div class="flex flex-col h-full overflow-y-auto custom-scrollbar pr-2 space-y-4 pb-10" id="sc-step8"><div class="mb-2 shrink-0"><h2 class="text-xl font-black">8. 配置ルールの詳細設定</h2><p class="text-xs text-slate-500 mt-1">「高(厳守)」は絶対ルール、「低(努力)」はなるべく守るルールとしてAIが計算します。</p></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            ${mkCard('considerSpecialistTimes', '専科等教員の勤務時間を厳密考慮', 'Step 4の教員✕枠の扱い。高にすると絶対に入れません。', 'high')}
+            ${mkCard('limitOneSubjectPerDayStrict', '週5h以下の教科の同日重複を禁止', '同じクラスに同じ教科が1日に2回以上入ることを防ぎます。', 'high')}
+            ${mkCard('limitContinuousToSpecificPeriods', '連続授業を「1-2, 3-4, 5-6限」のペア枠に限定', '中休みなどを跨ぐ連続授業を防ぎます。', 'high')}
+            ${mkCard('continuousClasses', '連続授業（ニコイチ）の登録', '2コマ連続で配置する教科を指定します。', 'high', 'gs')}
+            ${mkCard('homeroomOnlyTimes', '担任授業固定枠 (専科ブロック)', '行事準備などで、専科の授業を入れない枠を指定します。', 'low', 'gdp')}
+            ${mkCard('avoidSpecialistTimes', '専科教員全体を避ける枠', '会議や出張が多い時間帯を指定し、専科の授業を避けます。', 'low', 'dp')}
+            ${mkCard('maxIntervalSubjects', '実施日を離す教科 (等間隔配置)', '体育などが連日にならないよう、前日・翌日を避けます。', 'low', 'gs')}
+            ${mkCard('amPrioritySubjects', '午前に優先して配置する教科', '国語や算数など、1〜4限に集めたい教科を指定します。', 'low', 'gs')}
+            ${mkCard('lastPeriodSubjects', '最終コマに優先して配置する教科', 'クラブ、委員会、総合などを指定します。', 'low', 'gs')}
+            ${mkCard('avoidSpecificTimes', '特定の時間帯への配置を避ける教科', '午後の体育など、ピンポイントで避けたい条件を指定します。', 'low', 'gsp')}
+        </div></div>`;
     };
 
     window.viewStep9 = () => {
@@ -295,15 +300,9 @@
         let html = `<div class="flex flex-col flex-1 overflow-hidden min-h-0">`;
         if (state.unassigned?.length > 0) {
             html += `<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-3 shrink-0 shadow-sm flex flex-col gap-3">
-                        <div class="flex justify-between items-center flex-wrap gap-2">
-                            <span class="text-amber-600 font-black text-lg flex items-center gap-2">⚠️ ${state.unassigned.length}コマ未配置 <span class="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold shadow-sm">タップして強制配置</span></span>
-                            <div class="flex gap-2 items-center flex-wrap">
-                                <select id="relay-setting-dash" class="m3-input !py-1.5 !px-2 !text-[10px] font-bold text-blue-600 border-amber-200 cursor-pointer shadow-sm"><option value="1">1分追加</option><option value="2">2分追加</option></select>
-                                <button onclick="actions.continueGeneration()" class="px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black shadow-md animate-pulse">続きを計算する 🚀</button>
-                                <button onclick="actions.resetAndGenerate()" class="text-xs px-4 py-2 border border-rose-200 bg-white text-rose-600 rounded-xl font-bold hover:bg-rose-50 shadow-sm transition-colors">🔄 リセットして再計算</button>
-                            </div>
-                        </div>
+                        <div class="flex justify-between items-center flex-wrap gap-2"><span class="text-amber-600 font-black text-lg flex items-center gap-2">⚠️ ${state.unassigned.length}コマ未配置 <span class="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold shadow-sm">タップして強制配置</span></span></div>
                         <div class="flex flex-wrap gap-2">${state.unassigned.map((u,i)=>`<div class="flex items-stretch"><button onclick="actions.selectUnassigned(${i})" class="bg-white border ${state.selectedUnassignedIdx===i?'border-rose-500 ring-2 ring-rose-300':'border-amber-300 hover:bg-amber-100'} text-amber-800 px-3 py-1.5 rounded-l-lg text-[10px] font-bold shadow-sm transition-all flex items-center gap-1">👆 ${u.targets?.[0]} ${u.subject}</button><button onclick="actions.showDiagnostic('${u.targets?.join(',')}_${u.subject}')" class="bg-amber-100 border border-l-0 border-amber-300 text-amber-700 px-2 py-1.5 rounded-r-lg text-[10px] font-bold hover:bg-amber-200 transition-all shadow-sm" title="AI診断">❓</button></div>`).join('')}</div>
+                        <div class="flex gap-2 items-center flex-wrap mt-1 pt-3 border-t border-amber-200 border-dashed"><select id="relay-setting-dash" class="m3-input !py-1.5 !px-2 !text-[10px] font-bold text-blue-600 border-amber-200 cursor-pointer shadow-sm w-auto"><option value="1">1分追加</option><option value="2">2分追加</option></select><button onclick="actions.continueGeneration()" class="px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black shadow-md hover:bg-amber-600 transition-colors flex-1 text-center whitespace-nowrap">🚀 続きを計算</button><button onclick="actions.resetAndGenerate()" class="px-4 py-2 bg-white text-amber-700 border border-amber-300 rounded-xl text-xs font-black shadow-sm hover:bg-amber-100 transition-colors flex-1 text-center whitespace-nowrap">🔄 リセットして再計算</button></div>
                     </div>`;
         } else if (state.generatedSchedule) {
             html += `<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 mb-3 shrink-0 flex justify-between items-center flex-wrap gap-2 shadow-sm"><span class="text-emerald-700 font-black text-sm">✅ すべてのコマが配置されました！</span><div class="flex gap-2"><button onclick="actions.resetAndGenerate()" class="px-4 py-2 bg-white text-emerald-700 border border-emerald-300 rounded-xl text-xs font-bold hover:bg-emerald-100 shadow-sm transition-colors">🔄 もう一度計算する</button></div></div>`;
@@ -352,14 +351,20 @@
         toggleSpecialTeacher: (id, tid) => { const b=safeFind(state.specialBlocks,'id',id); if(b){ if(!b.teachers) b.teachers=[]; const tIdx=b.teachers.findIndex(x=>x.id===tid); if(tIdx>-1) b.teachers.splice(tIdx,1); else b.teachers.push({id:tid, hours:b.hours}); } render(); },
         updateSpecialTeacherHours: (bid, tid, hrs) => { const b=safeFind(state.specialBlocks,'id',bid); if(b&&b.teachers){ const bt=b.teachers.find(x=>x.id===tid); if(bt) bt.hours=Math.max(0, parseInt(hrs)||0); } render(); },
         
-        // ★ Step8 Simple Rules Add/Remove
+        // ★ Step8 新ルール操作
+        setPriority: (k, v) => { if(!state.advancedRules) state.advancedRules={}; if(!state.advancedRules.priorities) state.advancedRules.priorities={}; state.advancedRules.priorities[k]=v; render(); },
         setRule: (k, v) => { if(!state.advancedRules) state.advancedRules={}; state.advancedRules[k]=v; render(); },
-        addSimpleRule: (k, v) => { if(v){ if(!state.advancedRules) state.advancedRules={}; if(!state.advancedRules[k]) state.advancedRules[k]=[]; if(!state.advancedRules[k].includes(v)){ state.advancedRules[k].push(v); render(); } } },
-        removeSimpleRule: (k, idx) => { if(state.advancedRules?.[k]) { state.advancedRules[k].splice(idx,1); render(); } },
-        addContinuousClass: () => { const g=document.getElementById('r-cont-g').value, s=document.getElementById('r-cont-s').value; if(g&&s){ if(!state.advancedRules) state.advancedRules={}; if(!state.advancedRules.continuousClasses) state.advancedRules.continuousClasses=[]; state.advancedRules.continuousClasses.push({grade:g, subject:s}); render(); } },
-        removeContinuousClass: (idx) => { if(state.advancedRules?.continuousClasses) state.advancedRules.continuousClasses.splice(idx,1); render(); },
-        addAvoidTime: () => { const g=document.getElementById('r-av-g').value, s=document.getElementById('r-av-s').value, p=document.getElementById('r-av-p').value; if(g&&s&&p){ if(!state.advancedRules) state.advancedRules={}; if(!state.advancedRules.avoidSpecificTimes) state.advancedRules.avoidSpecificTimes=[]; state.advancedRules.avoidSpecificTimes.push({grade:g, subject:s, period:parseInt(p)}); render(); } },
-        removeAvoidTime: (idx) => { if(state.advancedRules?.avoidSpecificTimes) state.advancedRules.avoidSpecificTimes.splice(idx,1); render(); },
+        addRuleArr: (k, t) => {
+            const g = document.getElementById(`a-g-${k}`)?.value, s = document.getElementById(`a-s-${k}`)?.value, d = document.getElementById(`a-d-${k}`)?.value, p = document.getElementById(`a-p-${k}`)?.value;
+            let obj = {};
+            if(t.includes('g')) { if(!g) return showToast('学年を選択してください','error'); obj.grade = g; }
+            if(t.includes('s')) { if(!s) return showToast('教科を選択してください','error'); obj.subject = s; }
+            if(t.includes('d')) { if(!d) return showToast('曜日を選択してください','error'); obj.day = d; }
+            if(t.includes('p')) { if(!p) return showToast('時間を選択してください','error'); obj.period = parseInt(p)||p; }
+            if(!state.advancedRules) state.advancedRules={}; if(!state.advancedRules[k]) state.advancedRules[k] = [];
+            state.advancedRules[k].push(obj); render();
+        },
+        removeRuleArr: (k, idx) => { state.advancedRules[k].splice(idx,1); render(); },
         
         openAllocModal: (cls, subId, stdHours) => { const cData = state.classAssignments?.[cls], ovr = cData?.overrides?.[subId]||{}, rows = ovr.allocations?.length>0 ? JSON.parse(JSON.stringify(ovr.allocations)) : [{teacherId:(ovr.teacherId||cData?.homeroom||''), hours:stdHours}]; state.allocationModal = {cls, subId, stdHours, rows}; render(); },
         closeAllocModal: () => { state.allocationModal = null; render(); },
@@ -373,25 +378,13 @@
         setDashFilter: (v) => { state.dashFilter = v; render(); },
         selectUnassigned: (idx) => { state.selectedUnassignedIdx = state.selectedUnassignedIdx === idx ? null : idx; state.selectedDashCell = null; render(); },
         clickDashCell: (d, p) => { 
-            // ★ 手動配置モード（タップ＆プレイス）
             if (state.selectedUnassignedIdx !== null) {
-                actions.pushUndo();
-                const lesson = state.unassigned[state.selectedUnassignedIdx];
+                actions.pushUndo(); const lesson = state.unassigned[state.selectedUnassignedIdx];
                 if(!state.generatedSchedule[d]) state.generatedSchedule[d]={}; if(!state.generatedSchedule[d][p]) state.generatedSchedule[d][p]=[];
-                
-                // 教員重複の簡易警告 (配置は許可する)
-                let warn = false;
-                lesson.teacherIds.forEach(tid => { if(state.generatedSchedule[d][p].some(l => l.teacherIds.includes(tid))) warn = true; });
-                if(warn) showToast("⚠️ 同じ教員がこの時間に別の授業を持っています", "error");
-                else showToast("枠に強制配置しました", "success");
-
-                state.generatedSchedule[d][p].push(lesson);
-                state.unassigned.splice(state.selectedUnassignedIdx, 1);
-                state.selectedUnassignedIdx = null;
-                render(); return;
+                let warn = false; lesson.teacherIds.forEach(tid => { if(state.generatedSchedule[d][p].some(l => l.teacherIds.includes(tid))) warn = true; });
+                if(warn) showToast("⚠️ 同じ教員がこの時間に別の授業を持っています", "error"); else showToast("枠に強制配置しました", "success");
+                state.generatedSchedule[d][p].push(lesson); state.unassigned.splice(state.selectedUnassignedIdx, 1); state.selectedUnassignedIdx = null; render(); return;
             }
-            
-            // 通常のスワップモード
             if(!state.selectedDashCell) { state.selectedDashCell = {d,p}; render(); } 
             else { 
                 const c1 = state.selectedDashCell, c2 = {d,p}; 
@@ -422,13 +415,14 @@
             let html = `<h3 class="text-xl font-black text-blue-900 mb-2">【AI診断】${diag.target}：${diag.subject}</h3><p class="text-xs text-slate-500 mb-6 font-bold">AIがこの授業を配置できなかった原因と対策を報告します。</p><div class="space-y-4 mb-6 overflow-y-auto pr-2 custom-scrollbar">`;
             if (diag.causes?.length > 0) {
                 diag.causes.forEach(c => {
-                    const sol = c.type === "教員の都合" ? `Step 4で${c.detail.split('先生')[0]}先生の「✕」を減らしてください。` : `Step 3で${c.detail.split('が')[0]}の同時使用枠を増やすか、使用制限を緩和してください。`;
+                    const sol = c.type === "教員の都合" ? `Step 4で${c.detail.split('先生')[0]}先生の「✕」を減らしてください。` : (c.type==="厳守ルールの衝突" ? `Step 8で優先度「高」になっているルールを「低」に緩和してください。` : `Step 3で${c.detail.split('が')[0]}の同時使用枠を増やすか、使用制限を緩和してください。`);
                     html += `<div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-inner"><div class="flex justify-between items-start mb-2"><span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-[10px] font-black">${c.type}</span><span class="text-sm font-black text-rose-600">影響度: ${c.impact}%</span></div><p class="text-xs font-bold text-slate-700 mb-2">原因：${c.detail}</p><div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100"><p class="text-[10px] font-black text-blue-700 mb-1">💡 対策と成功率の向上</p><p class="text-xs font-bold text-blue-800">${sol}</p><p class="mt-2 text-[10px] font-black text-blue-600">➔ 対策実行後の配置可能性：<span class="text-lg font-black">${Math.min(99, 100-c.impact+30)}%</span></p></div></div>`;
                 });
             } else html += `<div class="text-center py-6 text-sm font-bold text-slate-400">特定のエラー原因は見つかりませんでした。条件が厳しすぎる可能性があります。</div>`;
             document.getElementById('modal-body').innerHTML = html + `</div><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="w-full p-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all">閉じて設定を修正する</button>`;
         },
 
+        hardReset: () => { localStorage.removeItem('tt_v13_stable'); location.reload(); },
         resetAndGenerate: () => {
             if(!confirm("現在の配置結果をすべてリセットし、最初からAIに計算させますか？")) return;
             state.generatedSchedule = null; state.unassigned = []; state.reportDetails = {};
