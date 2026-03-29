@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 13.63</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 14.0</title>
 <script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style type="text/tailwindcss">
 @layer utilities {
@@ -26,7 +26,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
     <header class="flex items-center justify-between mb-3 shrink-0 px-2">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.63 Save & Cancel)</p></div>
+            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (14.0 Unified Engine)</p></div>
         </div>
         <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
             <button onclick="actions.openQuickSaveModal()" class="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg shadow-sm transition-colors hidden sm:flex items-center gap-1">💾 セーブ＆ロード</button>
@@ -52,7 +52,9 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 </div>
 
 <script>
-var GAS_URL="https://script.google.com/macros/s/AKfycbyEROW_j5zbRv9KISoud97WwbIOPz6qnXU95wf8uQD4o3-g3qN7BwgwM70OYxtwbKIV8A/exec";
+// ★ Ver 14.0 の新しいURL
+var GAS_URL="https://script.google.com/macros/s/AKfycbxtgoyer1TVKHLbGA1KaUx_SVAWilPsXo_FNNpPuGgXDdg9xV7Px5dBHYHIcdMIVNC9-A/exec";
+
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4,5,6];
 var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室","4. 教員名簿","5. 特殊授業","6. クラス別担当","7. 教員別確認","8. 配置ルール","9. 最終点検","10. ダッシュボード"];
 var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, generatedSchedule:null, unassigned:[], reportDetails:{}, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'1-1', relayCount:0, maxRelayCount:0, selectedTeacherId:null, editingTeacherNameId:null, selectedDashCell:null, selectedUnassignedIdx:null, subjectsUndoStack:[], undoStack:[]};
@@ -231,7 +233,7 @@ showDiagnostic:(key)=>{
     const diag=state.reportDetails?.[key];if(!diag)return showToast("詳細データがありません");
     document.getElementById('modal-overlay').classList.remove('hidden');
     let html=`<h3 class="text-xl font-black text-blue-900 mb-2">【AI診断】${diag.target}：${diag.subject}</h3><p class="text-xs text-slate-500 mb-6 font-bold">配置できなかった原因と対策</p><div class="space-y-4 mb-6 overflow-y-auto pr-2 custom-scrollbar">`;
-    if(diag.causes?.length>0){diag.causes.forEach(c=>{const sol=c.type==="教員の都合"?`Step 4で${c.detail.split('先生')[0]}先生の「✕」を減らしてください。`:(c.type==="厳守ルールの衝突"?`Step 8で優先度「高」のルールを緩和してください。`:`Step 3で${c.detail.split('が')[0]}の使用制限を緩和してください。`);html+=`<div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-inner"><div class="flex justify-between items-start mb-2"><span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-[10px] font-black">${c.type}</span><span class="text-sm font-black text-rose-600">影響度: ${c.impact}%</span></div><p class="text-xs font-bold text-slate-700 mb-2">原因：${c.detail}</p><div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100"><p class="text-[10px] font-black text-blue-700 mb-1">💡 対策</p><p class="text-xs font-bold text-blue-800">${sol}</p></div></div>`;});}else html+=`<div class="text-center py-6 text-sm font-bold text-slate-400">条件が厳しすぎる可能性があります。</div>`;
+    if(diag.causes?.length>0){diag.causes.forEach(c=>{const sol=c.type==="教員の都合"?`Step 4で${c.detail.split('先生')[0]}先生の「✕」を減らしてください。`:(c.type==="アルゴリズムの限界"||c.type==="厳守ルールの衝突"?`Step 8で優先度「高」のルールを緩和してください。`:`Step 3で${c.detail.split('が')[0]}の使用制限を緩和してください。`);html+=`<div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-inner"><div class="flex justify-between items-start mb-2"><span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-[10px] font-black">${c.type}</span><span class="text-sm font-black text-rose-600">影響度: ${c.impact}%</span></div><p class="text-xs font-bold text-slate-700 mb-2">原因：${c.detail}</p><div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100"><p class="text-[10px] font-black text-blue-700 mb-1">💡 対策</p><p class="text-xs font-bold text-blue-800">${sol}</p></div></div>`;});}else html+=`<div class="text-center py-6 text-sm font-bold text-slate-400">条件が厳しすぎる可能性があります。</div>`;
     document.getElementById('modal-body').innerHTML=html+`</div><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="w-full p-4 bg-slate-800 text-white font-black rounded-2xl">閉じる</button>`;
 },
 hardReset:()=>{localStorage.removeItem('tt_v13_stable');location.reload();},
