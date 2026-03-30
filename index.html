@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.7.5.7</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.7.5.8</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script>
@@ -21,7 +21,7 @@ html, body { @apply h-full h-[100dvh] overflow-hidden m-0 p-0 font-sans bg-slate
 .m3-btn-primary { @apply bg-blue-600 text-white px-5 py-2.5 rounded-xl font-black hover:bg-blue-700 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 text-sm whitespace-nowrap; }
 .m3-btn-secondary { @apply bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 px-5 py-2.5 rounded-xl font-black hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap; }
 .m3-input { @apply p-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-blue-500 focus:bg-white font-bold text-xs transition-colors w-full dark:text-slate-100; }
-.t-input { @apply border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-blue-400 outline-none text-sm font-black transition-colors w-full shadow-inner; }
+.t-input { @apply border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-black transition-colors w-full shadow-inner; }
 .step-dot { @apply h-1.5 w-1.5 rounded-full transition-all duration-300 bg-slate-200 dark:bg-slate-700; } .step-dot.active { @apply bg-blue-600 dark:bg-blue-500 w-6; }
 .fade-in { animation: fadeIn 0.15s ease-out forwards; } @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .dash-cell { @apply min-h-[50px] p-1 border-r border-b border-slate-200 dark:border-slate-700/80 flex flex-col items-center justify-center gap-0.5 relative transition-colors cursor-pointer; }
@@ -48,7 +48,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
             
             <div id="modest-app-title" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 15.7.5.7 (Ultimate UX & Matrix UI)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 15.7.5.8 (Ultimate Stability & Matrix UI)</div>
             </div>
 
             <button id="btn-next" class="m3-btn-primary w-[160px] md:w-[180px] relative z-10"><span id="btn-next-text">次へ進む</span></button>
@@ -84,21 +84,16 @@ var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4
 var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室設定","4. 教員名簿と不可枠","5. 特殊授業ビルダー","6. クラス別担当設定","7. 教員別 持ち時数確認","8. 配置ルール詳細","9. 最終点検","10. 司令塔(ダッシュボード)"];
 var marathonGens = [10, 30, 50, 100, Infinity];
 
-// Step8 パッケージ定義 (画像1削除・教科別設定対応版)
-const step8Packages = [
-  { id: "pkg1", title: "【同日制約】 負担の分散と連続", desc: "授業の分散や連続設定など、時間割の骨格を定義します。",
-    items: [
-      { key: "limitOneSubjectPerDayStrict", type: "subjectToggles", title: "1日1コマ制限 (分散)", desc: "同じ日に2回以上入ることを防ぐ", tip: "集中力維持に重要です。" },
-      { key: "continuousClasses", type: "subjectToggles", title: "連続授業（ニコイチ）", desc: "2コマ連続で配置する", tip: "図工や家庭科に適用します。" },
-      { key: "maxIntervalSubjects", type: "subjectToggles", title: "実施日を離す (等間隔)", desc: "連日にならないよう、前日・翌日を避ける", tip: "体育などに適用します。" }
-    ]
-  },
-  { id: "pkg3", title: "【児童配慮】 学習リズムと集中力", desc: "児童の脳の活性化度や疲労度に合わせた教科配置を行います。",
-    items: [
-      { key: "amPrioritySubjects", type: "subjectToggles", title: "午前に優先配置", desc: "主要教科を1〜4限に集める", tip: "脳が活性化している時間帯に配置します。" },
-      { key: "lastPeriodSubjects", type: "subjectToggles", title: "最終コマに優先配置", desc: "クラブ、委員会、総合など", tip: "メリハリをつけます。" }
-    ]
-  },
+// Step 8: 教科別スマート・制約マトリックス定義
+const subjectRules = [
+    { key: 'limitOneSubjectPerDayStrict', title: '1日1コマ制限 (分散)', desc: '同じ日に2回以上入ることを防ぎます。', tip: '集中力維持に重要です。' },
+    { key: 'continuousClasses', title: '連続授業（ニコイチ）', desc: '2コマ連続で配置します。', tip: '図工や家庭科に適用します。ペア枠限定も可能です。', hasPairOption: true },
+    { key: 'maxIntervalSubjects', title: '実施日を離す (等間隔)', desc: '連日にならないよう、前日・翌日を避けます。', tip: '体育などに適用します。' },
+    { key: 'amPrioritySubjects', title: '午前に優先配置', desc: '主要教科を1〜4限に集めます。', tip: '脳が活性化している時間帯に配置します。' },
+    { key: 'lastPeriodSubjects', title: '最終コマに優先配置', desc: 'クラブ、委員会、総合などに。', tip: 'メリハリをつけます。' }
+];
+
+const arrayPackages = [
   { id: "pkg2", title: "【教員連携・外部対応】 チームワーク同期", desc: "学年会議、若手フォロー、外部支援員などの予定を同期します。",
     items: [
       { key: "exclusivePairs", type: "array", fields: ['subject1', 'subject2'], format: "[subject1] と [subject2] を同じ日にしない", title: "同日実施回避 (排他ペア)", desc: "体育(中)と体育(外)など、重なると負担が大きい教科を指定", tip: "児童の肉体的負担を分散させます。" },
@@ -114,7 +109,7 @@ const step8Packages = [
   }
 ];
 
-var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{pkg1:true}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon: {active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best: {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, isBuilderOpen:false, openTeacherLoads:{}, specialBuilder: {type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, subjectsUndoStack:[], rulesUndoStack:[], heatmapLesson:null};
+var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon: {active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best: {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, isBuilderOpen:false, openTeacherLoads:{}, openSubjectRules:{}, specialBuilder: {type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, subjectsUndoStack:[], rulesUndoStack:[], heatmapLesson:null};
 
 function safeFind(arr,k,v){return (arr||[]).find(x=>x[k]===v);}
 function forceInitState(){
@@ -123,17 +118,19 @@ function forceInitState(){
     if(!state.subjects?.length) state.subjects=[{id:'s1',name:'国語',stdHours:{1:9,2:9,3:7,4:7,5:5,6:5},defaultRoom:'通常教室', gradeRooms:{}},{id:'s2',name:'算数',stdHours:{1:4,2:5,3:5,4:5,5:5,6:5},defaultRoom:'通常教室', gradeRooms:{}}];
     if(!state.grades) state.grades={1:3,2:3,3:3,4:3,5:3,6:3}; if(!state.classAssignments) state.classAssignments={};
     GRADES.forEach(g=>{for(let i=1;i<=(parseInt(state.grades[g])||1);i++){let c=`${g}-${i}`;if(!state.classAssignments[c]) state.classAssignments[c]={homeroom:'',overrides:{}};}});
-    if(!state.advancedRules) state.advancedRules={priorities:{}}; if(!state.ruleEditor) state.ruleEditor={}; if(!state.openPkgs) state.openPkgs={pkg1:true};
+    if(!state.advancedRules) state.advancedRules={priorities:{}}; if(!state.ruleEditor) state.ruleEditor={}; 
+    if(!state.openPkgs) state.openPkgs={}; // ★ 最初は全て閉じる
     if(!state.specialBuilder) state.specialBuilder={type:'joint', subjectId:(state.subjects[0]?.id||''), hours:1, room:'通常教室', targets:[], teachers:[]};
     if(!state.subjectsUndoStack) state.subjectsUndoStack=[]; if(!state.rulesUndoStack) state.rulesUndoStack=[];
     if(typeof state.marathon === 'undefined') state.marathon = {active:false, target:0, maxGen:10, currentGen:1, relaxRules:false};
     if(typeof state.marathon.relaxRules === 'undefined') state.marathon.relaxRules = false;
     if(typeof state.isBuilderOpen === 'undefined') state.isBuilderOpen = false;
     if(!state.openTeacherLoads) state.openTeacherLoads = {};
+    if(!state.openSubjectRules) state.openSubjectRules = {}; // ★ 最初は全て閉じる
     if(typeof state.heatmapLesson === 'undefined') state.heatmapLesson = null;
 }
 
-function load(){ try{const d=localStorage.getItem('tt_v15_7_5_7');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render(); }
+function load(){ try{const d=localStorage.getItem('tt_v15_7_5_8');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render(); }
 function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-blue-600 text-white')}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
 function showLoading(t,d,showCancel=false, statusText=""){ const l=document.getElementById('loading-overlay'), cBtn=document.getElementById('btn-cancel-gen'), stEl=document.getElementById('loading-status'); if(l){ document.getElementById('loading-title').innerText=t; document.getElementById('loading-desc').innerText=d; if(statusText) { stEl.innerText=statusText; stEl.classList.remove('hidden'); stEl.classList.add('block'); } else { stEl.classList.add('hidden'); } if(showCancel)cBtn.classList.remove('hidden');else cBtn.classList.add('hidden'); l.classList.replace('hidden','flex'); } }
 function hideLoading(){ stopGenTimer(); const l=document.getElementById('loading-overlay'); if(l)l.classList.replace('flex','hidden'); }
@@ -177,19 +174,27 @@ function getTeacherLoadDetails(){
 
 function getTeacherLoads(){ let l={}; const dets=getTeacherLoadDetails(); Object.keys(dets).forEach(k=>l[k]=dets[k].total); return l; }
 
-// スクロール復元用変数
+// ★ スクロール無重力化 ＆ フォーカス記憶 ★
 let savedScrollPos = 0;
+let savedActiveId = null;
+let savedActiveStart = null;
+let savedActiveEnd = null;
 
 function render(){
     const scrollEl = document.getElementById('step-content');
     if(scrollEl) savedScrollPos = scrollEl.scrollTop;
     
-    // フォーカスの記憶
-    const activeElement = document.activeElement;
-    const activeId = activeElement && activeElement.id ? activeElement.id : null;
-    const activeSelection = activeElement && activeElement.tagName === 'INPUT' ? activeElement.selectionStart : null;
+    if (document.activeElement && document.activeElement.id) {
+        savedActiveId = document.activeElement.id;
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+            savedActiveStart = document.activeElement.selectionStart;
+            savedActiveEnd = document.activeElement.selectionEnd;
+        }
+    } else {
+        savedActiveId = null;
+    }
 
-    try{localStorage.setItem('tt_v15_7_5_7',JSON.stringify(state));}catch(e){}
+    try{localStorage.setItem('tt_v15_7_5_8',JSON.stringify(state));}catch(e){}
     
     const headerUtils = document.getElementById('step-header-utils');
     if (headerUtils) {
@@ -220,22 +225,20 @@ function render(){
     const content=document.getElementById('step-content');
     if(content){try{content.innerHTML=window[`viewStep${state.currentStep}`]();}catch(e){console.error(e);}}
     
-    // スクロールとフォーカスの復元 (完璧な同期)
-    const newScrollEl = document.getElementById('step-content');
-    if (newScrollEl) {
-        requestAnimationFrame(() => {
-            newScrollEl.scrollTop = savedScrollPos;
-            if (activeId) {
-                const el = document.getElementById(activeId);
-                if (el) {
-                    el.focus();
-                    if (activeSelection !== null && el.tagName === 'INPUT') {
-                        el.setSelectionRange(activeSelection, activeSelection);
-                    }
+    // スクロールとフォーカスの完全復元
+    requestAnimationFrame(() => {
+        const newScrollEl = document.getElementById('step-content');
+        if (newScrollEl) newScrollEl.scrollTop = savedScrollPos;
+        if (savedActiveId) {
+            const el = document.getElementById(savedActiveId);
+            if (el) {
+                el.focus();
+                if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && savedActiveStart !== null) {
+                    el.setSelectionRange(savedActiveStart, savedActiveEnd);
                 }
             }
-        });
-    }
+        }
+    });
 }
 
 function buildGrid(ngMap,gMap,actStr){return `<div class="overflow-x-auto w-full custom-scrollbar min-h-0"><table class="border-separate border-spacing-1 table-fixed w-max mx-auto"><thead><tr><th class="w-8"></th>${DAYS.map(d=>`<th class="text-center text-xs font-black text-slate-400 dark:text-slate-500 w-9">${d}</th>`).join('')}</tr></thead><tbody>${PERIODS.map(p=>`<tr><td class="text-right pr-2 text-[10px] font-bold text-slate-400 dark:text-slate-500">${p}限</td>${DAYS.map(d=>{const k=`${d}-${p}`,gl=gMap?.[k],ng=ngMap?.[k],cls=`w-8 h-8 border rounded-lg flex items-center justify-center cursor-pointer font-bold text-xs transition-colors ${gl?'bg-slate-700 dark:bg-slate-400 dark:text-slate-900 text-white shadow-md border-slate-700':(ng?'bg-rose-50 dark:bg-rose-900/40 border-rose-200 dark:border-rose-800/60 text-rose-500':'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-200 dark:text-slate-600 hover:bg-blue-50 dark:hover:bg-slate-700')}`;return `<td class="p-0"><div onclick="${actStr.replace('__KEY__',k)}" class="${cls}">${gl?'■':(ng?'✕':'〇')}</div></td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;}
@@ -420,7 +423,7 @@ window.viewStep6 = ()=>{
                         let spFixedHtml = `<div class="col-span-4 flex flex-wrap gap-1 px-2 pb-1.5 pt-0.5">`;
                         for(let fi=0; fi<b.hours; fi++) { spFixedHtml += `<select onchange="actions.updateSpecialFixedTime('${b.id}', ${fi}, this.value)" class="text-[9px] p-0.5 rounded border border-slate-200 ${b.fixedTimes?.[fi]?'bg-amber-100 border-amber-400 text-amber-800 font-bold shadow-sm':'bg-white dark:bg-slate-800 text-slate-400 dark:border-slate-700'} outline-none cursor-pointer"><option value="">自動配置</option>${DAYS.map(d=>PERIODS.map(p=>`<option value="${d}-${p}" ${b.fixedTimes?.[fi]===`${d}-${p}`?'selected':''}>${d}${p}固定</option>`).join('')).join('')}</select>`; }
                         spFixedHtml += `</div>`;
-                        rowsHtml+=`<div class="bg-indigo-50/20 dark:bg-indigo-900/10 rounded-xl mb-1 border-l-4 border-indigo-400 border border-slate-100 dark:border-slate-800"><div class="grid grid-cols-[1.5fr_50px_2fr_1fr] gap-2 p-1.5 pt-2 items-center"><div class="font-black text-xs pl-1 text-indigo-900 dark:text-indigo-300 flex items-center gap-1">🤝 ${s.name}<span class="text-[8px] bg-indigo-100 dark:bg-indigo-800 px-1 rounded">特殊</span></div><div class="text-center font-black text-indigo-600 text-xs">${b.hours}</div><div class="text-[10px] font-bold text-indigo-700 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 truncate shadow-sm">🔒 ${tNames}</div><div class="text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 truncate text-center">📍${b.room}</div></div>${spFixedHtml}</div>`;
+                        rowsHtml+=`<div class="bg-indigo-50/20 dark:bg-indigo-900/10 rounded-xl mb-1 border-l-4 border-indigo-400 border border-slate-100 dark:border-slate-800"><div class="grid grid-cols-[1.5fr_50px_2fr_1fr] gap-2 p-1.5 pt-2 items-center"><div class="font-black text-xs pl-1 text-indigo-900 dark:text-indigo-300 flex items-center gap-1">🤝 ${s.name}<span class="text-[8px] bg-indigo-100 dark:bg-indigo-800 px-1 rounded">特殊</span></div><div class="text-center font-black text-indigo-600 text-xs">${b.hours}</div><div class="text-[10px] font-bold text-indigo-700 bg-white dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700 truncate shadow-sm">🔒 ${tNames}</div><div class="text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700 truncate text-center">📍${b.room}</div></div>${spFixedHtml}</div>`;
                     });
                     
                     if(normH > 0){
@@ -474,77 +477,108 @@ window.viewStep7 = ()=>{
     }).join('')}</div></div>`;
 };
 
-// --- Step 8 (教科別トグルUI ＋ パッケージ) ---
+// --- Step 8 (教科別スマートマトリックス ＋ パッケージ) ---
 window.viewStep8 = () => {
     let html = `<div class="flex flex-col lg:flex-row h-full overflow-hidden gap-4" id="sc-step8">`;
     html += `<div class="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-2 pb-10">`;
     html += `<div class="flex justify-between items-center mb-1 shrink-0 flex-wrap gap-2"><h2 class="text-lg font-black dark:text-slate-100 tracking-tight">配置ルール詳細設定</h2><div class="flex gap-2 items-center"><button onclick="actions.undoRules()" class="p-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-400 hover:text-blue-600 transition-colors shadow-sm border border-slate-200 dark:border-slate-700" title="元に戻す">↩️ 1つ戻る</button><button onclick="actions.applyPreset('standard')" class="px-3 py-1.5 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded-lg text-[10px] font-bold border border-blue-200 dark:border-blue-800 shadow-sm active:scale-95 transition-transform">標準セット</button><button onclick="actions.applyPreset('child')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-200 dark:border-emerald-800 shadow-sm active:scale-95 transition-transform">児童重視</button><button onclick="actions.applyPreset('reset')" class="px-3 py-1.5 bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 rounded-lg text-[10px] font-bold border border-rose-200 dark:border-rose-800 shadow-sm active:scale-95 transition-transform">🗑️ 全て解除</button></div></div>`;
     
+    // 教科別ルールの描画
+    subjectRules.forEach(r => {
+        const isOpen = state.openSubjectRules?.[r.key];
+        const rulesObj = state.advancedRules?.[r.key] || {};
+        let activeBadges = '';
+        Object.keys(rulesObj).forEach(sName => {
+            const val = rulesObj[sName]?.priority || rulesObj[sName];
+            if (val === 'high') activeBadges += `<span class="px-1.5 py-0.5 rounded text-[8px] font-black bg-rose-100 text-rose-700 border border-rose-200">${sName}:厳</span>`;
+            else if (val === 'low') activeBadges += `<span class="px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">${sName}:努</span>`;
+        });
+        if (!activeBadges) activeBadges = `<span class="text-[9px] text-slate-400 font-bold">未設定</span>`;
+
+        html += `<div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-1 shrink-0">`;
+        html += `<div class="p-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onclick="actions.toggleSubjectRule('${r.key}')">
+            <div>
+                <h3 class="font-black text-slate-800 dark:text-slate-200 text-sm flex items-center gap-1">${r.title} <span class="w-3.5 h-3.5 rounded-full bg-blue-100 text-blue-600 text-[9px] flex items-center justify-center cursor-help" title="${r.tip}">?</span></h3>
+                <p class="text-[9px] text-slate-500 font-bold mt-0.5">${r.desc}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="flex gap-1 flex-wrap justify-end max-w-[150px]">${activeBadges}</div>
+                <span class="text-slate-400 transform transition-transform ${isOpen ? 'rotate-180' : ''}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+            </div>
+        </div>`;
+        
+        if (isOpen) {
+            html += `<div class="p-2 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"><div class="grid grid-cols-1 md:grid-cols-2 gap-2">`;
+            (state.subjects||[]).forEach(s => {
+                let ruleVal = rulesObj[s.name] || {priority: 'off'};
+                if(typeof ruleVal === 'string') ruleVal = {priority: ruleVal}; 
+                
+                let pairOptionHtml = '';
+                if (r.hasPairOption && ruleVal.priority !== 'off') {
+                    pairOptionHtml = `<label class="flex items-center gap-1 cursor-pointer ml-2 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><input type="checkbox" ${ruleVal.pairOnly?'checked':''} onchange="actions.updateSubjectToggleOption('${r.key}', '${s.name}', 'pairOnly', this.checked)" class="w-3 h-3"><span class="text-[9px] font-bold text-slate-600 dark:text-slate-300">ペア枠限定</span></label>`;
+                }
+
+                html += `<div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <span class="text-[11px] font-black dark:text-slate-200 pl-1">${s.name}</span>
+                    <div class="flex items-center">
+                        ${pairOptionHtml}
+                        <select onchange="actions.updateSubjectToggle('${r.key}', '${s.name}', this.value)" class="ml-2 text-[10px] font-bold p-1 rounded outline-none cursor-pointer border shadow-sm transition-colors ${ruleVal.priority==='high'?'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30':ruleVal.priority==='low'?'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30':'bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'}">
+                            <option value="off" ${ruleVal.priority==='off'?'selected':''}>適用なし</option>
+                            <option value="low" ${ruleVal.priority==='low'?'selected':''}>努力(Low)</option>
+                            <option value="high" ${ruleVal.priority==='high'?'selected':''}>厳守(High)</option>
+                        </select>
+                    </div>
+                </div>`;
+            });
+            html += `</div></div>`;
+        }
+        html += `</div>`;
+    });
+
+    // 従来の配列パッケージの描画
     const uSubs = Array.from(new Set((state.subjects||[]).map(s=>s.name)));
-    step8Packages.forEach(pkg => {
+    arrayPackages.forEach(pkg => {
         html += `<div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-1 shrink-0">`;
         html += `<div class="p-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onclick="actions.togglePkg('${pkg.id}')"><div><h3 class="font-black text-slate-800 dark:text-slate-200 text-sm">${pkg.title}</h3><p class="text-[9px] text-slate-500 font-bold mt-0.5">${pkg.desc}</p></div><div class="flex items-center gap-4"><button onclick="event.stopPropagation(); actions.resetPackage('${pkg.id}')" class="text-slate-400 hover:text-rose-500 font-bold text-[10px] transition-colors bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 shadow-sm">↻ リセット</button><span class="text-slate-400 transform transition-transform ${state.openPkgs?.[pkg.id] ? 'rotate-180' : ''}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div></div>`;
         
         if (state.openPkgs?.[pkg.id]) {
             html += `<div class="p-2 flex flex-col gap-2">`;
             pkg.items.forEach(item => {
-                if (item.type === 'subjectToggles') {
-                    // 教科別ON/OFFトグル UI
-                    const isActive = state.advancedRules && state.advancedRules[item.key] && Object.keys(state.advancedRules[item.key]).length > 0;
-                    html += `<div class="p-3 bg-white dark:bg-slate-900 rounded-xl border ${isActive?'border-blue-300 ring-2 ring-blue-50 dark:ring-blue-900/20 shadow-sm':'border-slate-100 dark:border-slate-800'} flex flex-col gap-2 transition-all">`;
-                    html += `<div class="flex flex-col"><span class="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">${item.title} <div class="group relative flex items-center justify-center"><span class="w-3.5 h-3.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 text-[9px] font-black flex items-center justify-center cursor-help">?</span><div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-52 p-2 bg-slate-800 dark:bg-black text-white text-[9px] rounded shadow-lg z-10 font-bold leading-tight text-center">${item.tip}</div></div></span><span class="text-[8px] font-bold text-slate-500">${item.desc}</span></div>`;
+                const isActive = state.advancedRules && state.advancedRules[item.key] !== undefined, prio = state.advancedRules?.priorities?.[item.key] || 'low';
+                html += `<div class="p-3 bg-white dark:bg-slate-900 rounded-xl border ${isActive?'border-blue-300 ring-2 ring-blue-50 dark:ring-blue-900/20 shadow-sm':'border-slate-100 dark:border-slate-800'} flex flex-col gap-2 transition-all" onmouseenter="actions.hoverRule('${item.key}')" onmouseleave="actions.clearPreview()">`;
+                html += `<div class="flex justify-between items-start gap-2"><div class="flex items-center gap-2 pt-0.5"><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" ${isActive?'checked':''} onchange="actions.toggleRuleActive('${item.key}', this.checked)"><div class="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4 shadow-sm"></div></label><div class="flex flex-col"><span class="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">${item.title} <div class="group relative flex items-center justify-center"><span class="w-3.5 h-3.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 text-[9px] font-black flex items-center justify-center cursor-help">?</span><div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-52 p-2 bg-slate-800 dark:bg-black text-white text-[9px] rounded shadow-lg z-10 font-bold leading-tight text-center">${item.tip}</div></div></span><span class="text-[8px] font-bold text-slate-500">${item.desc}</span></div></div>`;
+                if (isActive) html += `<select onchange="actions.setPriority('${item.key}',this.value)" class="text-[9px] font-black p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none cursor-pointer transition-colors shadow-sm shrink-0 ${prio==='high'?'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/40':'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40'}"><option value="high" ${prio==='high'?'selected':''}>優先:高(厳守)</option><option value="low" ${prio==='low'?'selected':''}>優先:低(努力)</option></select>`;
+                html += `</div>`;
+                
+                if (isActive && item.type === 'array') {
+                    const editor = state.ruleEditor?.[item.key] || {};
+                    html += `<div class="mt-1 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col gap-2 shadow-inner">`;
+                    if (item.fields.includes('target')) html += actions.renderMultiSelect(item.key, 'targets', '対象', ['全学年', ...GRADES.map(g=>`${g}年生`)], editor.targets || []);
+                    if (item.fields.includes('exclude')) html += actions.renderMultiSelect(item.key, 'excludes', '除外', GRADES.map(g=>`${g}年生`), editor.excludes || [], 'rose');
+                    if (item.fields.includes('subject')) html += actions.renderMultiSelect(item.key, 'subjects', '教科', uSubs, editor.subjects || [], 'indigo');
+                    if (item.fields.includes('subject1')) html += actions.renderMultiSelect(item.key, 'subjects1', '教科A', uSubs, editor.subjects1 || [], 'indigo');
+                    if (item.fields.includes('subject2')) html += actions.renderMultiSelect(item.key, 'subjects2', '教科B', uSubs, editor.subjects2 || [], 'indigo');
+                    if (item.fields.includes('day')) html += actions.renderMultiSelect(item.key, 'days', '曜日', DAYS, editor.days || [], 'amber');
+                    if (item.fields.includes('period')) html += actions.renderMultiSelect(item.key, 'periods', '時限', PERIODS.map(p=>`${p}限`), editor.periods || [], 'amber');
+                    html += `<div class="flex justify-end mt-1 gap-2 border-t border-slate-200 dark:border-slate-700 pt-2"><button onclick="actions.clearRuleEditor('${item.key}')" class="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[9px] font-bold text-slate-500 hover:text-slate-700 transition-colors shadow-sm">選択クリア</button><button onclick="actions.addRuleMulti('${item.key}', '${item.fields.join(',')}')" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-bold shadow-sm hover:bg-blue-700 active:scale-95 transition-transform">+ ルール追加</button></div>`;
                     
-                    html += `<div class="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2 border-t border-slate-200 dark:border-slate-700 pt-3">`;
-                    (state.subjects||[]).forEach(s => {
-                        const val = state.advancedRules?.[item.key]?.[s.name] || 'off';
-                        html += `<div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                            <span class="text-[10px] font-black pl-1 dark:text-slate-200 truncate pr-1">${s.name}</span>
-                            <select onchange="actions.updateSubjectToggle('${item.key}', '${s.name}', this.value)" class="text-[9px] font-bold p-1 rounded outline-none cursor-pointer border shadow-sm transition-colors ${val==='high'?'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30':val==='low'?'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30':'bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'}">
-                                <option value="off" ${val==='off'?'selected':''}>適用なし</option>
-                                <option value="low" ${val==='low'?'selected':''}>優先:努力</option>
-                                <option value="high" ${val==='high'?'selected':''}>優先:厳守</option>
-                            </select>
-                        </div>`;
-                    });
+                    const arr = state.advancedRules[item.key] || [];
+                    html += `<div class="flex flex-wrap gap-1.5 mt-1.5">`;
+                    if (arr.length === 0) html += `<span class="text-[8px] text-slate-400 font-bold px-1 italic">未登録です</span>`;
+                    else { arr.forEach((r, idx) => {
+                        let txt = "";
+                        if (item.key === 'exclusivePairs') txt = `${(r.subjects1||[]).join('・')||r.subject1} × ${(r.subjects2||[]).join('・')||r.subject2}`;
+                        else {
+                            txt += `<span class="text-blue-600 dark:text-blue-300">${(r.targets||[]).map(t=>t.replace('年生','年')).join('・')||'全学年'}</span>${(r.excludes && r.excludes.length)?`<span class="text-rose-500 ml-1">(除:${r.excludes.map(t=>t.replace('年生','年')).join('・')})</span>`:''}`;
+                            if(r.subjects) txt += ` <span class="text-indigo-600 dark:text-indigo-300 ml-1 font-black">${r.subjects.join('・')}</span>`;
+                            if(r.days) txt += ` <span class="text-amber-600 dark:text-amber-300 ml-1">${r.days.join('・')}曜</span>`;
+                            if(r.periods) txt += ` <span class="text-amber-600 dark:text-amber-300 ml-1">${r.periods.map(p=>p.replace('限','')).join('・')}限</span>`;
+                        }
+                        html += `<span class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] font-black py-1.5 px-2.5 rounded-lg shadow-sm flex items-center gap-2 hover:border-rose-300 transition-colors" onmouseenter="actions.hoverListRule('${item.key}', ${idx})" onmouseleave="actions.updatePreviewFromEditor('${item.key}')">${txt}<button onclick="actions.removeRuleNew('${item.key}',${idx})" class="text-rose-400 hover:text-rose-600 ml-1 pl-1.5 border-l border-slate-200 dark:border-slate-700">✕</button></span>`;
+                    }); }
                     html += `</div></div>`;
-                } else {
-                    // 従来のアレイ形式 UI
-                    const isActive = state.advancedRules && state.advancedRules[item.key] !== undefined, prio = state.advancedRules?.priorities?.[item.key] || 'low';
-                    html += `<div class="p-3 bg-white dark:bg-slate-900 rounded-xl border ${isActive?'border-blue-300 ring-2 ring-blue-50 dark:ring-blue-900/20 shadow-sm':'border-slate-100 dark:border-slate-800'} flex flex-col gap-2 transition-all" onmouseenter="actions.hoverRule('${item.key}')" onmouseleave="actions.clearPreview()">`;
-                    html += `<div class="flex justify-between items-start gap-2"><div class="flex items-center gap-2 pt-0.5"><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" ${isActive?'checked':''} onchange="actions.toggleRuleActive('${item.key}', this.checked)"><div class="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4 shadow-sm"></div></label><div class="flex flex-col"><span class="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">${item.title} <div class="group relative flex items-center justify-center"><span class="w-3.5 h-3.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 text-[9px] font-black flex items-center justify-center cursor-help">?</span><div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-52 p-2 bg-slate-800 dark:bg-black text-white text-[9px] rounded shadow-lg z-10 font-bold leading-tight text-center">${item.tip}</div></div></span><span class="text-[8px] font-bold text-slate-500">${item.desc}</span></div></div>`;
-                    if (isActive) html += `<select onchange="actions.setPriority('${item.key}',this.value)" class="text-[9px] font-black p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none cursor-pointer transition-colors shadow-sm shrink-0 ${prio==='high'?'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/40':'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40'}"><option value="high" ${prio==='high'?'selected':''}>優先:高(厳守)</option><option value="low" ${prio==='low'?'selected':''}>優先:低(努力)</option></select>`;
-                    html += `</div>`;
-                    
-                    if (isActive && item.type === 'array') {
-                        const editor = state.ruleEditor?.[item.key] || {};
-                        html += `<div class="mt-1 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col gap-2 shadow-inner">`;
-                        if (item.fields.includes('target')) html += actions.renderMultiSelect(item.key, 'targets', '対象', ['全学年', ...GRADES.map(g=>`${g}年生`)], editor.targets || []);
-                        if (item.fields.includes('exclude')) html += actions.renderMultiSelect(item.key, 'excludes', '除外', GRADES.map(g=>`${g}年生`), editor.excludes || [], 'rose');
-                        if (item.fields.includes('subject')) html += actions.renderMultiSelect(item.key, 'subjects', '教科', uSubs, editor.subjects || [], 'indigo');
-                        if (item.fields.includes('subject1')) html += actions.renderMultiSelect(item.key, 'subjects1', '教科A', uSubs, editor.subjects1 || [], 'indigo');
-                        if (item.fields.includes('subject2')) html += actions.renderMultiSelect(item.key, 'subjects2', '教科B', uSubs, editor.subjects2 || [], 'indigo');
-                        if (item.fields.includes('day')) html += actions.renderMultiSelect(item.key, 'days', '曜日', DAYS, editor.days || [], 'amber');
-                        if (item.fields.includes('period')) html += actions.renderMultiSelect(item.key, 'periods', '時限', PERIODS.map(p=>`${p}限`), editor.periods || [], 'amber');
-                        html += `<div class="flex justify-end mt-1 gap-2 border-t border-slate-200 dark:border-slate-700 pt-2"><button onclick="actions.clearRuleEditor('${item.key}')" class="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[9px] font-bold text-slate-500 hover:text-slate-700 transition-colors shadow-sm">選択クリア</button><button onclick="actions.addRuleMulti('${item.key}', '${item.fields.join(',')}')" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-bold shadow-sm hover:bg-blue-700 active:scale-95 transition-transform">+ ルール追加</button></div>`;
-                        
-                        const arr = state.advancedRules[item.key] || [];
-                        html += `<div class="flex flex-wrap gap-1.5 mt-1.5">`;
-                        if (arr.length === 0) html += `<span class="text-[8px] text-slate-400 font-bold px-1 italic">未登録です</span>`;
-                        else { arr.forEach((r, idx) => {
-                            let txt = "";
-                            if (item.key === 'exclusivePairs') txt = `${(r.subjects1||[]).join('・')||r.subject1} × ${(r.subjects2||[]).join('・')||r.subject2}`;
-                            else {
-                                txt += `<span class="text-blue-600 dark:text-blue-300">${(r.targets||[]).map(t=>t.replace('年生','年')).join('・')||'全学年'}</span>${(r.excludes && r.excludes.length)?`<span class="text-rose-500 ml-1">(除:${r.excludes.map(t=>t.replace('年生','年')).join('・')})</span>`:''}`;
-                                if(r.subjects) txt += ` <span class="text-indigo-600 dark:text-indigo-300 ml-1 font-black">${r.subjects.join('・')}</span>`;
-                                if(r.days) txt += ` <span class="text-amber-600 dark:text-amber-300 ml-1">${r.days.join('・')}曜</span>`;
-                                if(r.periods) txt += ` <span class="text-amber-600 dark:text-amber-300 ml-1">${r.periods.map(p=>p.replace('限','')).join('・')}限</span>`;
-                            }
-                            html += `<span class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] font-black py-1.5 px-2.5 rounded-lg shadow-sm flex items-center gap-2 hover:border-rose-300 transition-colors" onmouseenter="actions.hoverListRule('${item.key}', ${idx})" onmouseleave="actions.updatePreviewFromEditor('${item.key}')">${txt}<button onclick="actions.removeRuleNew('${item.key}',${idx})" class="text-rose-400 hover:text-rose-600 ml-1 pl-1.5 border-l border-slate-200 dark:border-slate-700">✕</button></span>`;
-                        }); }
-                        html += `</div></div>`;
-                    }
-                    html += `</div>`;
                 }
+                html += `</div>`;
             });
             html += `</div>`;
         }
@@ -700,7 +734,7 @@ window.viewStep10 = ()=>{
 // --- アクションロジック ---
 window.actions = {
     toggleDarkMode: () => { const h = document.documentElement; h.classList.toggle('dark'); localStorage.setItem('tt_theme', h.classList.contains('dark') ? 'dark' : 'light'); },
-    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_7_5_7');location.reload();}},
+    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_7_5_8');location.reload();}},
     jumpToResult:()=>{state.currentStep=10;render();},
     
     pushUndoSubjects:()=>{ state.subjectsUndoStack.push(JSON.stringify(state.subjects)); if(state.subjectsUndoStack.length>10) state.subjectsUndoStack.shift(); },
@@ -733,24 +767,46 @@ window.actions = {
     // ルール操作 (ハイブリッド対応)
     pushUndoRules:()=>{ state.rulesUndoStack.push(JSON.stringify(state.advancedRules)); if(state.rulesUndoStack.length>10) state.rulesUndoStack.shift(); },
     undoRules:()=>{ if(state.rulesUndoStack.length>0){ state.advancedRules=JSON.parse(state.rulesUndoStack.pop()); render(); showToast("ルールを戻しました"); }else showToast("戻せる履歴がありません","error"); },
+    
+    toggleSubjectRule: (k) => { state.openSubjectRules[k] = !state.openSubjectRules[k]; render(); },
+    updateSubjectToggle: (rk, sName, val) => { 
+        actions.pushUndoRules(); 
+        if (!state.advancedRules[rk] || Array.isArray(state.advancedRules[rk])) state.advancedRules[rk] = {}; 
+        if (!state.advancedRules[rk][sName] || typeof state.advancedRules[rk][sName] === 'string') {
+            state.advancedRules[rk][sName] = { priority: val, pairOnly: false };
+        } else {
+            state.advancedRules[rk][sName].priority = val;
+        }
+        render(); 
+    },
+    updateSubjectToggleOption: (rk, sName, optKey, val) => {
+        actions.pushUndoRules();
+        if (!state.advancedRules[rk] || Array.isArray(state.advancedRules[rk])) state.advancedRules[rk] = {}; 
+        if (!state.advancedRules[rk][sName] || typeof state.advancedRules[rk][sName] === 'string') {
+            state.advancedRules[rk][sName] = { priority: 'low', [optKey]: val };
+        } else {
+            state.advancedRules[rk][sName][optKey] = val;
+        }
+        render();
+    },
+
     togglePkg:(id)=>{ Object.keys(state.openPkgs).forEach(k=>state.openPkgs[k]=false); state.openPkgs[id]=true; render(); },
-    toggleRuleActive:(k,a)=>{ actions.pushUndoRules(); if(!state.advancedRules)state.advancedRules={priorities:{}}; if(a){ const item=step8Packages.flatMap(p=>p.items).find(i=>i.key===k); if(item.type==='subjectToggles'){ state.advancedRules[k]={}; }else{ state.advancedRules[k]=[]; } state.advancedRules.priorities[k]='high'; }else{ delete state.advancedRules[k]; delete state.advancedRules.priorities[k]; } render(); },
+    toggleRuleActive:(k,a)=>{ actions.pushUndoRules(); if(!state.advancedRules)state.advancedRules={priorities:{}}; if(a){ state.advancedRules[k]=[]; state.advancedRules.priorities[k]='high'; }else{ delete state.advancedRules[k]; delete state.advancedRules.priorities[k]; } render(); },
     setPriority:(k,v)=>{ if(!state.advancedRules.priorities) state.advancedRules.priorities={}; state.advancedRules.priorities[k]=v; render(); },
-    updateSubjectToggle: (rk, sName, val) => { actions.pushUndoRules(); if (!state.advancedRules[rk] || Array.isArray(state.advancedRules[rk])) { state.advancedRules[rk] = {}; } state.advancedRules[rk][sName] = val; render(); },
     renderMultiSelect: (ruleKey, fieldKey, label, options, selectedArr, theme = 'blue') => { let h = `<div class="flex flex-col sm:flex-row sm:items-center gap-1.5"><span class="text-[9px] font-black text-slate-400 w-12 shrink-0">${label}</span><div class="flex flex-wrap gap-1 flex-1">`; let activeC = 'bg-blue-600 text-white border-blue-700 shadow-md ring-1 ring-blue-400'; if(theme==='rose') activeC = 'bg-rose-600 text-white border-rose-700 shadow-md ring-1 ring-rose-400'; else if(theme==='indigo') activeC = 'bg-indigo-600 text-white border-indigo-700 shadow-md ring-1 ring-indigo-400'; else if(theme==='amber') activeC = 'bg-amber-500 text-white border-amber-600 shadow-md ring-1 ring-amber-300'; if (options.length > 3) { const isAll = options.every(o => selectedArr.includes(o)); h += `<button onclick="actions.toggleAllRuleEditor('${ruleKey}', '${fieldKey}', '${options.join(',')}')" class="px-2 py-0.5 text-[10px] font-black rounded border border-slate-200 transition-all ${isAll ? activeC : 'bg-white dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400 shadow-sm'}">全選択</button><span class="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-0.5 self-center"></span>`; } options.forEach(o => { const isS = selectedArr.includes(o); h += `<button onclick="actions.toggleRuleEditor('${ruleKey}', '${fieldKey}', '${o}')" class="px-2 py-0.5 text-[9px] font-black rounded-lg border border-slate-200 transition-all ${isS ? activeC : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-400 hover:bg-slate-50 shadow-sm'}">${o.replace('年生','年').replace('限','')}</button>`; }); return h + `</div></div>`; },
     toggleRuleEditor:(rk,fk,v)=>{ if(!state.ruleEditor[rk]) state.ruleEditor[rk]={}; if(!state.ruleEditor[rk][fk]) state.ruleEditor[rk][fk]=[]; const arr=state.ruleEditor[rk][fk]; const i=arr.indexOf(v); if(i>-1) arr.splice(i,1); else arr.push(v); actions.updatePreviewFromEditor(rk); render(); },
     toggleAllRuleEditor:(rk,fk,optsStr)=>{ const opts=optsStr.split(','); if(!state.ruleEditor[rk]) state.ruleEditor[rk]={}; const arr=state.ruleEditor[rk][fk]||[]; const isA=opts.every(o=>arr.includes(o)); state.ruleEditor[rk][fk]=isA?[]:[...opts]; actions.updatePreviewFromEditor(rk); render(); },
     clearRuleEditor:(rk)=>{ state.ruleEditor[rk]={}; actions.updatePreviewFromEditor(rk); render(); },
     addRuleMulti:(rk,fks)=>{ actions.pushUndoRules(); const ed=state.ruleEditor[rk]||{}; let obj={}; let ok=true; fks.split(',').forEach(fk=>{ let val=ed[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]; if(!val?.length && fk!=='exclude'){ok=false;} obj[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]=val; }); if(!ok){showToast("選択項目が不足しています","error");return;} state.advancedRules[rk].push(obj); state.ruleEditor[rk]={}; actions.updatePreviewFromEditor(rk); render(); },
     removeRuleNew:(k,i)=>{ actions.pushUndoRules(); state.advancedRules[k].splice(i,1); render(); },
-    applyPreset:(type)=>{ actions.pushUndoRules(); if(type==='reset') state.advancedRules={priorities:{}}; else if(type==='standard') { state.advancedRules.limitOneSubjectPerDayStrict={"国語":"high","算数":"high"}; state.advancedRules.continuousClasses={"図工":"high","家庭":"high"}; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; state.advancedRules.priorities.continuousClasses='high'; } else if(type==='child') { state.advancedRules.limitOneSubjectPerDayStrict={"国語":"high","算数":"high"}; state.advancedRules.amPrioritySubjects={"国語":"high","算数":"high"}; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; state.advancedRules.priorities.amPrioritySubjects='low'; } render(); },
-    resetPackage:(id)=>{ const pkg=step8Packages.find(p=>p.id===id); if(pkg){ pkg.items.forEach(i=>{ delete state.advancedRules[i.key]; delete state.advancedRules.priorities[i.key]; }); render(); }},
+    applyPreset:(type)=>{ actions.pushUndoRules(); if(type==='reset') state.advancedRules={priorities:{}}; else if(type==='standard') { state.advancedRules.limitOneSubjectPerDayStrict={"国語":{priority:"high"},"算数":{priority:"high"}}; state.advancedRules.continuousClasses={"図工":{priority:"high",pairOnly:true},"家庭":{priority:"high",pairOnly:true}}; } else if(type==='child') { state.advancedRules.limitOneSubjectPerDayStrict={"国語":{priority:"high"},"算数":{priority:"high"}}; state.advancedRules.amPrioritySubjects={"国語":{priority:"low"},"算数":{priority:"low"}}; } render(); },
+    resetPackage:(id)=>{ const pkg=arrayPackages.find(p=>p.id===id); if(pkg){ pkg.items.forEach(i=>{ delete state.advancedRules[i.key]; delete state.advancedRules.priorities[i.key]; }); render(); }},
     
     // プレビュー表示
     calculateActiveBlocks: () => { let b={}; const r=state.advancedRules||{}; if(r.amPrioritySubjects && Object.keys(r.amPrioritySubjects).length>0) DAYS.forEach(d=>[5,6].forEach(p=>b[`${d}-${p}`]=true)); if(r.lastPeriodSubjects && Object.keys(r.lastPeriodSubjects).length>0) DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>b[`${d}-${p}`]=true)); ['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].forEach(k=>{ if(r[k]) r[k].forEach(v=>{ const dys=v.days||(v.day?[v.day]:DAYS), pds=v.periods?v.periods.map(p=>parseInt(p)):(v.period?[v.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>b[`${d}-${p}`]=true)); })}); return b; },
     applyPreviewUI: (aB, hB, d) => { const dEl=document.getElementById('preview-desc'); if(dEl) dEl.innerText=d; DAYS.forEach(d=>{ PERIODS.forEach(p=>{ const el=document.getElementById(`pv-${d}-${p}`); if(el){ if(hB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors bg-rose-500/30 border-rose-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)] shadow-inner"; else if(aB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors bg-rose-100 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800/50"; else el.className="h-6 w-full rounded-[4px] border transition-colors bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm"; } })}); },
     clearPreview: () => { actions.applyPreviewUI(actions.calculateActiveBlocks(), {}, "設定済みのルールは薄く、編集中の項目は濃く表示されます。"); },
-    updatePreviewFromEditor: (rk) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="編集中項目のシミュレーション"; const ed=state.ruleEditor[rk]||{}; if(rk==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); d="午前優先: 午後のコマが抑制されます。"; } else if (rk==='lastPeriodSubjects') { DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>hB[`${d}-${p}`]=true)); d="最終コマ優先: 最終コマ以外の枠が抑制されます。"; } else if (['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(rk)) { const dys=ed.days?.length?ed.days:DAYS, pds=ed.periods?.length?ed.periods.map(p=>parseInt(p.replace('限',''))):PERIODS; if(ed.days?.length||ed.periods?.length){ dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); d=`指定された ${dys.join('')}曜 ${pds.join(',')}限 の配置を禁止します。`; } } else if (rk==='limitContinuousToSpecificPeriods' || rk==='continuousClasses') { DAYS.forEach(d=>[2,4,6].forEach(p=>hB[`${d}-${p}`]=true)); d="ニコイチ制限: 中休み・昼休みを跨ぐペアが禁止されます。"; } actions.applyPreviewUI(aB, hB, d); },
+    updatePreviewFromEditor: (rk) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="編集中項目のシミュレーション"; const ed=state.ruleEditor[rk]||{}; if(rk==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); d="午前優先: 午後のコマが抑制されます。"; } else if (rk==='lastPeriodSubjects') { DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>hB[`${d}-${p}`]=true)); d="最終コマ優先: 最終コマ以外の枠が抑制されます。"; } else if (['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(rk)) { const dys=ed.days?.length?ed.days:DAYS, pds=ed.periods?.length?ed.periods.map(p=>parseInt(p.replace('限',''))):PERIODS; if(ed.days?.length||ed.periods?.length){ dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); d=`指定された ${dys.join('')}曜 ${pds.join(',')}限 の配置を禁止します。`; } } else if (rk==='continuousClasses') { DAYS.forEach(d=>[2,4,6].forEach(p=>hB[`${d}-${p}`]=true)); d="ニコイチ制限: 中休み・昼休みを跨ぐペアが禁止されます。"; } actions.applyPreviewUI(aB, hB, d); },
     hoverRule: (k) => { if(state.advancedRules[k]) actions.updatePreviewFromEditor(k); },
     hoverListRule: (k,i) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="選択中のルール範囲"; const r=state.advancedRules[k][i]; if(k==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); } else if(['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(k)){ const dys=r.days||(r.day?[r.day]:DAYS), pds=r.periods?r.periods.map(p=>parseInt(p.replace('限',''))):(r.period?[r.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); } actions.applyPreviewUI(aB, hB, d); },
 
@@ -771,7 +827,7 @@ window.actions = {
         const slots=Array.from({length:10},(_,i)=>i+1); 
         let h=`<div class="flex justify-between items-center mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 shrink-0"><h3 class="text-lg font-black text-emerald-700 dark:text-emerald-400">💾 スロットへ記録 (ブラウザ内)</h3><button onclick="actions.closeModal()" class="text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button></div><div class="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1 flex-1 min-h-0">`;
         slots.forEach(i=>{ 
-            let m=null; try{m=JSON.parse(localStorage.getItem('tt_v15_7_5_7_meta_'+i));}catch(e){} 
+            let m=null; try{m=JSON.parse(localStorage.getItem('tt_v15_7_5_8_meta_'+i));}catch(e){} 
             const isEmpty=!m;
             h+=`<div class="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-700 rounded-xl ${isEmpty?'bg-slate-50 dark:bg-slate-800/30 border-dashed':'bg-white dark:bg-slate-900 shadow-sm'}">
                 <div class="flex flex-col min-w-0 flex-1 pr-2">
@@ -808,38 +864,45 @@ window.actions = {
 
         const meta={name:n, time:new Date().toLocaleString(), hasSchedule: includeSchedule}; 
         try{ 
-            localStorage.setItem('tt_v15_7_5_7_save_'+s, JSON.stringify(saveData)); 
-            localStorage.setItem('tt_v15_7_5_7_meta_'+s, JSON.stringify(meta)); 
+            localStorage.setItem('tt_v15_7_5_8_save_'+s, JSON.stringify(saveData)); 
+            localStorage.setItem('tt_v15_7_5_8_meta_'+s, JSON.stringify(meta)); 
             showToast("保存しました","success"); 
             actions.openQuickSaveModal(); 
         } catch(e) {
             showToast("保存容量不足。設定のみ保存をお試しください。","error");
         } 
     },
-    quickLoad: (s) => { if(confirm("データを読み込みますか？(現在の状態は破棄されます)")){ const d=localStorage.getItem('tt_v15_7_5_7_save_'+s); if(d){ Object.assign(state,JSON.parse(d)); forceInitState(); render(); showToast("読み込み完了","success"); actions.closeModal(); } } },
+    quickLoad: (s) => { if(confirm("データを読み込みますか？(現在の状態は破棄されます)")){ const d=localStorage.getItem('tt_v15_7_5_8_save_'+s); if(d){ Object.assign(state,JSON.parse(d)); forceInitState(); render(); showToast("読み込み完了","success"); actions.closeModal(); } } },
 
-    // JSON出力 (完全復旧)
+    // JSON出力 (完全復旧・FileReader方式)
     exportData: () => {
-        const saveData = JSON.parse(JSON.stringify(state));
-        delete saveData.subjectsUndoStack;
-        delete saveData.rulesUndoStack;
-        delete saveData.heatmapLesson;
-        const blob = new Blob([JSON.stringify(saveData, null, 2)], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `SmartTimeTable_${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast("JSONデータを出力しました", "success");
+        try {
+            const saveData = JSON.parse(JSON.stringify(state));
+            delete saveData.subjectsUndoStack;
+            delete saveData.rulesUndoStack;
+            delete saveData.heatmapLesson;
+            
+            const blob = new Blob([JSON.stringify(saveData, null, 2)], {type: 'application/json'});
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                const url = reader.result;
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `SmartTimeTable_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                }, 100);
+                showToast("端末へバックアップしました", "success");
+            };
+            reader.readAsDataURL(blob);
+        } catch (e) {
+            showToast("出力エラー: " + e.message, "error");
+        }
     },
     importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読み込み完了","success");};r.readAsText(f);};i.click();},
-
-    // スプレッドシート出力
-    openExportModal: () => { let html = `<div class="flex justify-between items-center mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900 dark:text-blue-300">📤 スプレッドシートに出力</h3><button onclick="actions.closeModal()" class="text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button></div><div class="flex flex-col gap-4 overflow-y-auto pr-1 flex-1 min-h-0"><div class="flex flex-col gap-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700"><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-colors"><input type="checkbox" id="exp-mat-class" checked class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (クラス軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-colors"><input type="checkbox" id="exp-mat-teacher" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (教員軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-colors"><input type="checkbox" id="exp-mat-room" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (教室軸)</span></label><div class="h-px bg-slate-200 dark:bg-slate-700 my-2"></div><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-colors"><input type="checkbox" id="exp-ind-class" checked class="w-5 h-5 text-blue-600"><span class="font-black text-sm">各クラス用時間割 (配布用)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-colors"><input type="checkbox" id="exp-ind-teacher" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">各教員用時間割 (配布用)</span></label></div><div class="flex justify-end mt-2"><button onclick="actions.exportToSpreadsheetExec()" class="m3-btn-primary px-10">GASで実行して出力</button></div></div>`; document.getElementById('modal-body').innerHTML = html; document.getElementById('modal-overlay').classList.remove('hidden'); },
-    exportToSpreadsheetExec: async function() { const opts = { matrixClass: document.getElementById('exp-mat-class')?.checked||false, matrixTeacher: document.getElementById('exp-mat-teacher')?.checked||false, matrixRoom: document.getElementById('exp-mat-room')?.checked||false, individualClass: document.getElementById('exp-ind-class')?.checked||false, individualTeacher: document.getElementById('exp-ind-teacher')?.checked||false }; actions.closeModal(); showLoading("出力中", "作成には数十秒かかります。"); try{ const res=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({action:'export',schedule:state.generatedSchedule,state:actions.preparePayload(), options:opts})}); const data=await res.json(); if(data.success) showToast("出力成功！スプレッドシートをご確認ください。","success"); else showToast("出力失敗","error"); }catch(e){showToast("エラー","error");} finally {hideLoading();} },
 
     // AI マラソン & 生成ロジック
     updateMarathon: (k,v) => { state.marathon[k] = v; render(); },
@@ -934,18 +997,26 @@ window.actions = {
                 if (ruleData && !Array.isArray(ruleData) && typeof ruleData === 'object') {
                     let hasHigh = false;
                     let hasLow = false;
+                    let pairOnlyEnabled = false;
                     const exR = [];
                     Object.keys(ruleData).forEach(subName => {
-                        const val = ruleData[subName];
+                        const obj = ruleData[subName];
+                        const val = obj?.priority || obj; 
                         if (val === 'high' || val === 'low') {
                             exR.push({ targets: ["全学年"], subject: subName });
                             if (val === 'high') hasHigh = true;
                             if (val === 'low') hasLow = true;
+                            if (obj?.pairOnly) pairOnlyEnabled = true;
                         }
                     });
                     pS.advancedRules[k] = exR;
                     if (!pS.advancedRules.priorities) pS.advancedRules.priorities = {};
                     pS.advancedRules.priorities[k] = hasHigh ? 'high' : (hasLow ? 'low' : 'low');
+                    
+                    if (k === 'continuousClasses' && pairOnlyEnabled) {
+                        pS.advancedRules.limitContinuousToSpecificPeriods = true;
+                        pS.advancedRules.priorities.limitContinuousToSpecificPeriods = hasHigh ? 'high' : 'low';
+                    }
                 } else if (Array.isArray(ruleData)) {
                     const exR = []; 
                     ruleData.forEach(r => { 
@@ -960,7 +1031,6 @@ window.actions = {
                     pS.advancedRules[k] = exR; 
                 }
             }); 
-            // ルール緩和モード
             if (state.marathon.relaxRules && pS.advancedRules.priorities) {
                 Object.keys(pS.advancedRules.priorities).forEach(k => {
                     pS.advancedRules.priorities[k] = 'low';
