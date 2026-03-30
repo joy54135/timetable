@@ -124,6 +124,7 @@ function forceInitState(){
     if(!state.openSpecialEdits) state.openSpecialEdits={}; if(!state.subjectsUndoStack) state.subjectsUndoStack=[]; if(!state.rulesUndoStack) state.rulesUndoStack=[];
     if(typeof state.marathon.relaxRules === 'undefined') state.marathon.relaxRules = false;
     state.heatmapLesson = null;
+    if(!state.best) state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null};
 }
 
 function load(){ try{const d=localStorage.getItem('tt_v15_9_0');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render(); }
@@ -563,7 +564,7 @@ window.viewStep9 = ()=>{
                 </div>
                 <div class="flex flex-col md:flex-row gap-3 min-w-[280px] w-full md:w-auto">
                     ${resultBtn}
-                    <button onclick="actions.startGeneration()" class="flex-[2] bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-base shadow-md active:scale-95 transition-all flex items-center justify-center gap-2" ${teacherIssues.length > 0 ? 'title="警告があります"' : ''}>🚀 AIマラソンを開始</button>
+                    <button onclick="actions.startGeneration()" class="flex-[2] bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-base shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" ${teacherIssues.length > 0 ? 'title="警告があります" disabled' : ''}>🚀 AIマラソンを開始</button>
                 </div>
             </div>
         </div>
@@ -658,7 +659,6 @@ window.actions = {
     hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_9_0');location.reload();}},
     jumpToResult:()=>{state.currentStep=10;render();},
     
-    // データ保存・読み込み (出力機能の完全復旧)
     exportData: () => {
         try {
             const fileName = `SmartTimeTable_Backup_${new Date().toISOString().slice(0,10)}.json`;
@@ -689,7 +689,7 @@ window.actions = {
     },
     importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読み込み完了","success");};r.readAsText(f);};i.click();},
 
-    // 教科・教員・特殊授業等のアクション群
+    // 教科・教員・特殊授業等
     pushUndoSubjects:()=>{ state.subjectsUndoStack.push(JSON.stringify(state.subjects)); if(state.subjectsUndoStack.length>10) state.subjectsUndoStack.shift(); },
     undoSubjects:()=>{ if(state.subjectsUndoStack.length>0){ state.subjects=JSON.parse(state.subjectsUndoStack.pop()); render(); showToast("教科設定を戻しました"); }else showToast("戻せる履歴がありません","error"); },
     addSubject:(n)=>{ actions.pushUndoSubjects(); state.subjects.push({id:'s_'+Date.now(),name:n,stdHours:{1:0,2:0,3:0,4:0,5:0,6:0},defaultRoom:'通常教室',gradeRooms:{}}); render(); },
@@ -772,6 +772,7 @@ window.actions = {
             obj.allowPeriod2 = document.getElementById('ed-allowP2')?.checked || false;
             obj.allowPeriod4 = document.getElementById('ed-allowP4')?.checked || false;
         }
+        if(!state.advancedRules[rk]) state.advancedRules[rk] = [];
         state.advancedRules[rk].push(obj); state.ruleEditor[rk]={}; actions.updatePreviewFromEditor(rk); render(); 
     },
     removeRuleNew:(k,i)=>{ actions.pushUndoRules(); state.advancedRules[k].splice(i,1); render(); },
@@ -861,10 +862,16 @@ window.actions = {
 
     // AI マラソン & 生成ロジック
     updateMarathon: (k,v) => { state.marathon[k] = v; render(); },
-    startGeneration: async function(){ state.marathon.active = true; state.marathon.currentGen = 1; globalStartTime = Date.now(); state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}; actions.runMarathonCycle(); },
+    startGeneration: async function(){ 
+        state.marathon.active = true; 
+        state.marathon.currentGen = 1; 
+        globalStartTime = Date.now(); 
+        state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}; 
+        actions.runMarathonCycle(); 
+    },
     continueMarathon: async function(){ const addGen = 10; state.marathon.active = true; if(state.marathon.maxGen !== Infinity) state.marathon.maxGen += addGen; actions.runMarathonCycle(); },
     continueGeneration: function(){ state.marathon.active = false; actions.runSingleCycle("今の盤面を元に再調整中...", false); },
-    cancelGeneration: () => { hideLoading(); state.marathon.active = false; if (state.best.schedule) { state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; state.currentStep = 10; showToast(`ベスト盤面を表示します。`, "info"); } else { state.currentStep = 9; } render(); },
+    cancelGeneration: () => { hideLoading(); state.marathon.active = false; if (state.best && state.best.schedule) { state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; state.currentStep = 10; showToast(`ベスト盤面を表示します。`, "info"); } else { state.currentStep = 9; } render(); },
     
     runMarathonCycle: async function(){ 
         if (!state.marathon.active) return; 
@@ -872,7 +879,8 @@ window.actions = {
         startGenTimer(); 
         showLoading("AIマラソン中", `第 ${m.currentGen} / ${m.maxGen===Infinity?'∞':m.maxGen} 世代`, true, `目標:未配置${m.target}以下`); 
         try { 
-            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: actions.preparePayload(), currentSchedule: null, unassigned: null }) }); 
+            const payload = actions.preparePayload();
+            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: payload, currentSchedule: null, unassigned: null }) }); 
             const data = await res.json(); 
             if (!state.marathon.active) return; 
             
@@ -941,7 +949,7 @@ window.actions = {
         } 
     },
     
-    // ユーティリティ・その他UIモーダル
+    // ガード節を強化したペイロード生成
     preparePayload: () => { 
         const pS = JSON.parse(JSON.stringify(state)); 
         if (pS.advancedRules) { 
@@ -955,10 +963,28 @@ window.actions = {
                         const s1s = r.subjects1 || [r.subject1]; const s2s = r.subjects2 || [r.subject2]; 
                         s1s.forEach(s1 => s2s.forEach(s2 => { if(s1 !== s2) exR.push({subject1: s1, subject2: s2}); })); 
                     } else { 
-                        const tgs = (r.targets?.length) ? r.targets : [undefined]; const excs = (r.excludes?.length) ? r.excludes : [undefined]; const subs = (r.subjects?.length) ? r.subjects : [undefined]; const dys = (r.days?.length) ? r.days : [undefined]; const pds = (r.periods?.length) ? r.periods : [undefined]; 
+                        const tgs = (r.targets?.length) ? r.targets : [undefined]; 
+                        const excs = (r.excludes?.length) ? r.excludes : [undefined]; 
+                        const subs = (r.subjects?.length) ? r.subjects : [undefined]; 
+                        const dys = (r.days?.length) ? r.days : [undefined]; 
+                        const pds = (r.periods?.length) ? r.periods : [undefined]; 
+                        
                         tgs.forEach(tg => excs.forEach(ex => subs.forEach(su => dys.forEach(dy => pds.forEach(pd => { 
-                            let nr = {}; if (tg) nr.grade = tg; if (ex) nr.exclude = ex; if (su) nr.subject = su; if (dy) nr.day = dy; if (pd) nr.period = parseInt(pd.toString().replace('限','')); 
-                            if (k === 'continuousClasses') { nr.priority = r.priority || 'high'; nr.allowPeriod2 = !!r.allowPeriod2; nr.allowPeriod4 = !!r.allowPeriod4; }
+                            let nr = {}; 
+                            if (tg) nr.grade = tg; 
+                            if (ex) nr.exclude = ex; 
+                            if (su) nr.subject = su; 
+                            if (dy) nr.day = dy; 
+                            if (pd) {
+                                // undefinedチェック（型安全）
+                                const pdStr = pd.toString();
+                                nr.period = parseInt(pdStr.replace('限','')); 
+                            }
+                            if (k === 'continuousClasses') { 
+                                nr.priority = r.priority || 'high'; 
+                                nr.allowPeriod2 = !!r.allowPeriod2; 
+                                nr.allowPeriod4 = !!r.allowPeriod4; 
+                            }
                             exR.push(nr); 
                         }))))); 
                     } 
