@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.7.5.10</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.9.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script>
@@ -46,7 +46,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
             <button id="btn-prev" class="m3-btn-secondary w-[100px] md:w-[120px] relative z-10">戻る</button>
             <div id="modest-app-title" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 15.7.5.10 (Gravity Free & Smart Continuous)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 15.9.0 (Gravity Free)</div>
             </div>
             <button id="btn-next" class="m3-btn-primary w-[160px] md:w-[180px] relative z-10"><span id="btn-next-text">次へ進む</span></button>
         </div>
@@ -73,20 +73,19 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 
 <script>
 // =========================================
-// 安定版URL (Ver 15.7.5.10 バックエンド)
+// 最新版URL (Ver 15.9.0 バックエンド)
 // =========================================
-var GAS_URL="https://script.google.com/macros/s/AKfycbyYQ85x05s9j-OhnvCDeqs8jHpKK0Wg7uRuoGC8mR4OXVndJej4WzVZTTQo3Sq3T0rT-g/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbx6etJIgL1vDrXIfo0rZqZwkb-be78MWY2d00tcUs8Zoe53xnpf4H17AZzCfqjVbUU1SQ/exec";
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4,5,6];
 var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室設定","4. 教員名簿と不可枠","5. 特殊授業ビルダー","6. クラス別担当設定","7. 教員別 持ち時数確認","8. 配置ルール詳細","9. 最終点検","10. 司令塔(ダッシュボード)"];
 var marathonGens = [10, 30, 50, 100, Infinity];
 
-// ステップ8のニコイチ枠統合パッケージ
 const step8Packages = [
   { id: "pkg1", title: "【基本構造】 パズルの骨組み", desc: "授業の分散や連続設定など、時間割の骨格を定義します。",
     items: [
       { key: "limitOneSubjectPerDayStrict", type: "boolean", title: "同日重複を禁止 (分散)", desc: "同じクラスに同じ教科が1日に2回以上入ることを防ぐ", tip: "児童の集中力維持と、毎日の学習習慣定着のために重要です。" },
-      { key: "continuousClasses", type: "array", fields: ['target', 'exclude', 'subject', 'strictFrame'], format: "[target] ただし [exclude] を除く の [subject] を2コマ連続にする", title: "連続授業（ニコイチ）", desc: "図工や家庭科など、2コマ連続で配置したい教科と、配置枠の固定を指定する", tip: "教科ごとに「1-2, 3-4, 5-6限のみに固定するか」と「優先度」を選べます。" },
+      { key: "continuousClasses", type: "array", fields: ['target', 'exclude', 'subject'], format: "[target] ただし [exclude] を除く の [subject] を2コマ連続にする", title: "連続授業（ニコイチ）", desc: "図工や家庭科など、2コマ連続で配置したい教科と、配置枠の固定を指定する", tip: "教科ごとに「1-2, 3-4, 5-6限のみに固定するか」と「優先度」を選べます。" },
       { key: "exclusivePairs", type: "array", fields: ['subject1', 'subject2'], format: "[subject1] と [subject2] を同じ日にしない", title: "同日実施回避 (排他ペア)", desc: "体育(中)と体育(外)など、重なると負担が大きい教科を指定する", tip: "児童の肉体的負担を分散させます。" },
       { key: "maxIntervalSubjects", type: "array", fields: ['target', 'exclude', 'subject'], format: "[target] ただし [exclude] を除く の [subject] は連日配置を避ける", title: "実施日を離す教科 (等間隔)", desc: "体育などが連日にならないよう、前日・翌日を避ける", tip: "体力回復や学習の定着期間を確保します。" }
     ]
@@ -127,7 +126,7 @@ function forceInitState(){
     state.heatmapLesson = null;
 }
 
-function load(){ try{const d=localStorage.getItem('tt_v15_7_5_10');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render(); }
+function load(){ try{const d=localStorage.getItem('tt_v15_9_0');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render(); }
 function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-blue-600 text-white')}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
 function showLoading(t,d,showCancel=false, statusText=""){ const l=document.getElementById('loading-overlay'), cBtn=document.getElementById('btn-cancel-gen'), stEl=document.getElementById('loading-status'); if(l){ document.getElementById('loading-title').innerText=t; document.getElementById('loading-desc').innerText=d; if(statusText) { stEl.innerText=statusText; stEl.classList.remove('hidden'); stEl.classList.add('block'); } else { stEl.classList.add('hidden'); } if(showCancel)cBtn.classList.remove('hidden');else cBtn.classList.add('hidden'); l.classList.replace('hidden','flex'); } }
 function hideLoading(){ stopGenTimer(); const l=document.getElementById('loading-overlay'); if(l)l.classList.replace('flex','hidden'); }
@@ -180,10 +179,8 @@ let scrollState = { content: 0 };
 function saveUIState() {
     const el = document.activeElement;
     if (el && el.id && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
-        focusState = { id: el.id, start: el.selectionStart, end: el.selectionEnd };
-    } else {
-        focusState = { id: null };
-    }
+        focusState = { id: el.id, start: el.selectionStart || 0, end: el.selectionEnd || 0 };
+    } else { focusState = { id: null }; }
     const sc = document.getElementById('step-content');
     scrollState.content = sc ? sc.scrollTop : 0;
 }
@@ -196,7 +193,7 @@ function restoreUIState() {
         const el = document.getElementById(focusState.id);
         if (el) {
             el.focus();
-            if (focusState.start !== undefined && focusState.start !== null && typeof el.setSelectionRange === 'function') {
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
                 try { el.setSelectionRange(focusState.start, focusState.end); } catch(e){}
             }
         }
@@ -205,8 +202,7 @@ function restoreUIState() {
 
 function render(){
     saveUIState();
-
-    try{localStorage.setItem('tt_v15_7_5_10',JSON.stringify(state));}catch(e){}
+    try{localStorage.setItem('tt_v15_9_0',JSON.stringify(state));}catch(e){}
     
     const headerUtils = document.getElementById('step-header-utils');
     if (headerUtils) {
@@ -237,9 +233,7 @@ function render(){
     const content=document.getElementById('step-content');
     if(content){try{content.innerHTML=window[`viewStep${state.currentStep}`]();}catch(e){console.error(e);}}
     
-    requestAnimationFrame(() => {
-        restoreUIState();
-    });
+    requestAnimationFrame(() => restoreUIState());
 }
 
 function buildGrid(ngMap,gMap,actStr){return `<div class="overflow-x-auto w-full custom-scrollbar min-h-0"><table class="border-separate border-spacing-1 table-fixed w-max mx-auto"><thead><tr><th class="w-8"></th>${DAYS.map(d=>`<th class="text-center text-xs font-black text-slate-400 dark:text-slate-500 w-9">${d}</th>`).join('')}</tr></thead><tbody>${PERIODS.map(p=>`<tr><td class="text-right pr-2 text-[10px] font-bold text-slate-400 dark:text-slate-500">${p}限</td>${DAYS.map(d=>{const k=`${d}-${p}`,gl=gMap?.[k],ng=ngMap?.[k],cls=`w-8 h-8 border rounded-lg flex items-center justify-center cursor-pointer font-bold text-xs transition-colors ${gl?'bg-slate-700 dark:bg-slate-400 dark:text-slate-900 text-white shadow-md border-slate-700':(ng?'bg-rose-50 dark:bg-rose-900/40 border-rose-200 dark:border-rose-800/60 text-rose-500':'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-200 dark:text-slate-600 hover:bg-blue-50 dark:hover:bg-slate-700')}`;return `<td class="p-0"><div onclick="${actStr.replace('__KEY__',k)}" class="${cls}">${gl?'■':(ng?'✕':'〇')}</div></td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;}
@@ -474,18 +468,7 @@ window.viewStep8 = () => {
                     if (item.fields.includes('day')) html += actions.renderMultiSelect(item.key, 'days', '曜日', DAYS, editor.days || [], 'amber');
                     if (item.fields.includes('period')) html += actions.renderMultiSelect(item.key, 'periods', '時限', PERIODS.map(p=>`${p}限`), editor.periods || [], 'amber');
                     
-                    if (item.key === 'continuousClasses') {
-                        html += `<div class="flex items-center gap-3 mt-1 p-2 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-slate-700">
-                            <label class="flex items-center gap-2 cursor-pointer flex-1">
-                                <input type="checkbox" id="ed-strictFrame" class="w-4 h-4 text-indigo-600 rounded">
-                                <span class="text-[10px] font-black text-indigo-700 dark:text-indigo-300">ペア枠(1-2, 3-4, 5-6限)に限定する</span>
-                            </label>
-                            <select id="ed-priority" class="text-[10px] font-black p-1.5 border rounded-lg bg-slate-50 dark:bg-slate-800 dark:text-slate-200 outline-none shrink-0 shadow-sm cursor-pointer border-slate-200">
-                                <option value="high">優先度: 高 (厳守)</option>
-                                <option value="low">優先度: 低 (努力)</option>
-                            </select>
-                        </div>`;
-                    }
+                    if (item.key === 'continuousClasses') html += actions.renderContinuousUI(item.key);
 
                     html += `<div class="flex justify-end mt-1 gap-2 border-t dark:border-slate-700 pt-2"><button onclick="actions.clearRuleEditor('${item.key}')" class="px-3 py-1 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg text-[9px] font-bold text-slate-500 hover:text-slate-700 transition-colors shadow-sm">選択クリア</button><button onclick="actions.addRuleMulti('${item.key}', '${item.fields.join(',')}')" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-bold shadow-sm hover:bg-blue-700 active:scale-95 transition-transform">+ 追加</button></div>`;
                     
@@ -502,8 +485,13 @@ window.viewStep8 = () => {
                             if(r.periods) txt += ` <span class="text-amber-600 dark:text-amber-300 ml-1">${r.periods.map(p=>p.replace('限','')).join('・')}限</span>`;
                         }
                         if (item.key === 'continuousClasses') {
-                            txt += ` <span class="text-[9px] ml-1 bg-slate-100 dark:bg-slate-800 px-1 rounded ${r.strictFrame ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'} font-bold">[枠:${r.strictFrame?'固定':'自由'}]</span>`;
-                            txt += ` <span class="text-[9px] ml-0.5 bg-slate-100 dark:bg-slate-800 px-1 rounded ${r.priority==='high' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'} font-bold">[優先:${r.priority==='high'?'高':'低'}]</span>`;
+                            txt += ` <span class="text-[9px] ml-0.5 bg-slate-100 dark:bg-slate-800 px-1 rounded ${r.priority==='high' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'} font-bold">[優先:${r.priority==='high'?'厳守':'努力'}]</span>`;
+                            if (r.priority === 'low') {
+                                let allows = [];
+                                if (r.allowPeriod2) allows.push('2限始');
+                                if (r.allowPeriod4) allows.push('4限始');
+                                if (allows.length > 0) txt += ` <span class="text-[9px] ml-0.5 bg-slate-100 dark:bg-slate-800 px-1 rounded text-slate-500 font-bold">[妥協:${allows.join(',')}]</span>`;
+                            }
                         }
                         html += `<span class="bg-white dark:bg-slate-900 border dark:border-slate-700 text-[10px] font-black py-1 px-2 rounded-lg shadow-sm flex items-center gap-2 hover:border-rose-300 transition-colors" onmouseenter="actions.hoverListRule('${item.key}', ${idx})" onmouseleave="actions.updatePreviewFromEditor('${item.key}')">${txt}<button onclick="actions.removeRuleNew('${item.key}',${idx})" class="text-rose-400 hover:text-rose-600 ml-1 pl-1.5 border-l dark:border-slate-700">✕</button></span>`;
                     }); }
@@ -517,7 +505,6 @@ window.viewStep8 = () => {
     });
     html += `</div>`;
     
-    // 右側: ミニプレビューパネル
     html += `<div class="hidden lg:flex flex-col w-1/3 min-w-[280px] h-fit sticky top-0 bg-white dark:bg-[#1a2035] rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">`;
     html += `<div class="flex items-center gap-3 mb-4"><div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 ring-2 ring-blue-100 shadow-inner"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg></div><div><h3 class="text-sm font-black text-slate-800 dark:text-white">ミニ・プレビュー</h3><p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Constraints Heatmap</p></div></div>`;
     html += `<div class="bg-slate-50 dark:bg-slate-900 rounded-2xl p-3 border border-slate-100 dark:border-slate-800 shadow-inner"><table class="w-full text-center table-fixed border-collapse"><thead><tr><th class="w-6"></th>${DAYS.map(d=>`<th class="text-[10px] font-black text-slate-400 pb-2">${d}</th>`).join('')}</tr></thead><tbody>`;
@@ -527,7 +514,7 @@ window.viewStep8 = () => {
         html += `</tr>`;
     });
     html += `</tbody></table></div>`;
-    html += `<div class="mt-4 p-3 bg-blue-50/50 dark:bg-indigo-900/20 rounded-xl border border-blue-100 dark:border-indigo-800/50 flex gap-2 items-start"><span class="text-blue-500 text-xs mt-0.5">💡</span><div class="text-[10px] text-slate-600 dark:text-indigo-200 font-bold leading-snug flex flex-col gap-1 w-full" id="preview-desc-container"><div class="flex items-center gap-2 border-b border-blue-100 dark:border-indigo-800/50 pb-1.5 mb-1.5"><div class="flex items-center gap-1"><span class="w-3 h-3 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/50 rounded-sm"></span>背景: 既存ルール</div><div class="flex items-center gap-1"><span class="w-3 h-3 bg-rose-500/30 border border-rose-400 rounded-sm bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)]"></span>強調: 入力中</div></div><p id="preview-desc">項目にマウスを乗せてください。</p></div></div>`;
+    html += `<div class="mt-4 p-3 bg-blue-50/50 dark:bg-indigo-900/20 rounded-xl border border-blue-100 dark:border-indigo-800/50 flex gap-2 items-start"><span class="text-blue-500 text-xs mt-0.5">💡</span><div class="text-[10px] text-slate-600 dark:text-indigo-200 font-bold leading-snug flex flex-col gap-1.5 w-full" id="preview-desc-container"><div class="flex items-center gap-2 border-b border-blue-100 dark:border-indigo-800/50 pb-1.5 mb-1 flex-wrap"><div class="flex items-center gap-1"><span class="w-3 h-3 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/50 rounded-sm"></span>背景: 既存ルール</div><div class="flex items-center gap-1"><span class="w-3 h-3 bg-rose-500/30 border border-rose-400 rounded-sm bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)]"></span>強調: 禁止/抑制</div><div class="flex items-center gap-1"><span class="w-3 h-3 bg-blue-500/30 border border-blue-400 rounded-sm"></span>青: 推奨枠</div><div class="flex items-center gap-1"><span class="w-3 h-3 bg-amber-500/30 border border-amber-400 rounded-sm"></span>黄: 妥協枠</div></div><p id="preview-desc">項目にマウスを乗せてください。</p></div></div>`;
     html += `</div>`;
     
     html += `</div>`;
@@ -668,7 +655,7 @@ window.viewStep10 = ()=>{
 // --- アクションロジック ---
 window.actions = {
     toggleDarkMode: () => { const h = document.documentElement; h.classList.toggle('dark'); localStorage.setItem('tt_theme', h.classList.contains('dark') ? 'dark' : 'light'); },
-    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_7_5_10');location.reload();}},
+    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_9_0');location.reload();}},
     jumpToResult:()=>{state.currentStep=10;render();},
     
     // データ保存・読み込み (出力機能の完全復旧)
@@ -735,6 +722,30 @@ window.actions = {
     togglePkg:(id)=>{ Object.keys(state.openPkgs).forEach(k=>state.openPkgs[k]=false); state.openPkgs[id]=true; render(); },
     toggleRuleActive:(k,a)=>{ actions.pushUndoRules(); if(!state.advancedRules)state.advancedRules={priorities:{}}; if(a){ const item=step8Packages.flatMap(p=>p.items).find(i=>i.key===k); state.advancedRules[k]=(item.type==='array'?[]:true); state.advancedRules.priorities[k]='high'; }else{ delete state.advancedRules[k]; delete state.advancedRules.priorities[k]; } render(); },
     setPriority:(k,v)=>{ state.advancedRules.priorities[k]=v; render(); },
+    
+    // UIコンポーネント (ニコイチ特有UIを含む)
+    renderContinuousUI: (rk) => {
+        const ed = state.ruleEditor[rk] || {};
+        return `<div class="flex flex-col gap-3 mt-1 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800">
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                    <span class="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase">枠固定の設定</span>
+                    <select id="ed-priority" class="m3-input !py-1 !text-[10px] !w-40 font-black">
+                        <option value="high">厳守 (1, 3, 5限始のみ)</option>
+                        <option value="low">努力 (妥協枠を許可)</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <span class="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase">妥協許可枠 (努力時のみ有効)</span>
+                    <div class="flex gap-3">
+                        <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="ed-allowP2" class="w-4 h-4 text-indigo-600 rounded"><span class="text-[10px] font-bold text-indigo-900 dark:text-indigo-100">2限始(中休み跨ぎ)</span></label>
+                        <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="ed-allowP4" class="w-4 h-4 text-indigo-600 rounded"><span class="text-[10px] font-bold text-indigo-900 dark:text-indigo-100">4限始(給食跨ぎ)</span></label>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    },
+    
     renderMultiSelect: (ruleKey, fieldKey, label, options, selectedArr, theme = 'blue') => {
         let h = `<div class="flex flex-col sm:flex-row sm:items-center gap-1.5"><span class="text-[9px] font-black text-slate-400 w-12 shrink-0">${label}</span><div class="flex flex-wrap gap-1 flex-1">`;
         let activeC = 'bg-blue-600 text-white border-blue-700 shadow-md ring-1 ring-blue-400';
@@ -751,15 +762,15 @@ window.actions = {
     addRuleMulti:(rk,fks)=>{ 
         actions.pushUndoRules(); const ed=state.ruleEditor[rk]||{}; let obj={}; let ok=true; 
         fks.split(',').forEach(fk=>{ 
-            if(fk==='strictFrame') return;
             let val=ed[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]; 
             if(!val?.length && fk!=='exclude'){ok=false;} 
             obj[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]=val; 
         }); 
         if(!ok){showToast("選択項目が不足しています","error");return;} 
         if(rk==='continuousClasses') {
-            obj.strictFrame = document.getElementById('ed-strictFrame')?.checked || false;
             obj.priority = document.getElementById('ed-priority')?.value || 'high';
+            obj.allowPeriod2 = document.getElementById('ed-allowP2')?.checked || false;
+            obj.allowPeriod4 = document.getElementById('ed-allowP4')?.checked || false;
         }
         state.advancedRules[rk].push(obj); state.ruleEditor[rk]={}; actions.updatePreviewFromEditor(rk); render(); 
     },
@@ -769,11 +780,61 @@ window.actions = {
     
     // プレビュー表示
     calculateActiveBlocks: () => { let b={}; const r=state.advancedRules||{}; if(r.amPrioritySubjects?.length) DAYS.forEach(d=>[5,6].forEach(p=>b[`${d}-${p}`]=true)); if(r.lastPeriodSubjects?.length) DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>b[`${d}-${p}`]=true)); ['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].forEach(k=>{ if(r[k]) r[k].forEach(v=>{ const dys=v.days||(v.day?[v.day]:DAYS), pds=v.periods?v.periods.map(p=>parseInt(p)):(v.period?[v.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>b[`${d}-${p}`]=true)); })}); return b; },
-    applyPreviewUI: (aB, hB, d) => { const dEl=document.getElementById('preview-desc'); if(dEl) dEl.innerText=d; DAYS.forEach(d=>{ PERIODS.forEach(p=>{ const el=document.getElementById(`pv-${d}-${p}`); if(el){ if(hB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-rose-500/30 border-rose-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)] shadow-inner"; else if(aB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-rose-100 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800/50"; else el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm"; } })}); },
+    applyPreviewUI: (aB, hB, d) => { 
+        const dEl=document.getElementById('preview-desc'); if(dEl) dEl.innerText=d; 
+        DAYS.forEach(d=>{ 
+            PERIODS.forEach(p=>{ 
+                const el=document.getElementById(`pv-${d}-${p}`); 
+                if(el){ 
+                    if(hB[`${d}-${p}`] === 'blue') el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-blue-500/30 border-blue-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(59,130,246,0.2)_2px,rgba(59,130,246,0.2)_4px)] shadow-inner";
+                    else if(hB[`${d}-${p}`] === 'yellow') el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-amber-500/30 border-amber-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(245,158,11,0.2)_2px,rgba(245,158,11,0.2)_4px)] shadow-inner";
+                    else if(hB[`${d}-${p}`] === true || hB[`${d}-${p}`] === 'red') el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-rose-500/30 border-rose-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)] shadow-inner";
+                    else if(aB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-rose-100 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800/50"; 
+                    else el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm"; 
+                } 
+            });
+        }); 
+    },
     clearPreview: () => { actions.applyPreviewUI(actions.calculateActiveBlocks(), {}, "設定済みのルールは薄く、編集中の項目は濃く表示されます。"); },
-    updatePreviewFromEditor: (rk) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="編集中項目のシミュレーション"; const ed=state.ruleEditor[rk]||{}; if(rk==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); d="午前優先: 午後のコマが抑制されます。"; } else if (rk==='lastPeriodSubjects') { DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>hB[`${d}-${p}`]=true)); d="最終コマ優先: 最終コマ以外の枠が抑制されます。"; } else if (['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(rk)) { const dys=ed.days?.length?ed.days:DAYS, pds=ed.periods?.length?ed.periods.map(p=>parseInt(p.replace('限',''))):PERIODS; if(ed.days?.length||ed.periods?.length){ dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); d=`指定された ${dys.join('')}曜 ${pds.join(',')}限 の配置を禁止します。`; } } else if (rk==='continuousClasses') { const isStrict = document.getElementById('ed-strictFrame')?.checked; if (isStrict) { DAYS.forEach(d=>[2,4,6].forEach(p=>hB[`${d}-${p}`]=true)); d="ニコイチ枠固定: 中休み・昼休み跨ぎを禁止します。"; } else { d="枠の固定なしで連続配置を試みます。"; } } actions.applyPreviewUI(aB, hB, d); },
+    updatePreviewFromEditor: (rk) => { 
+        const aB=actions.calculateActiveBlocks(); let hB={}; let d="編集中項目のシミュレーション"; 
+        const ed=state.ruleEditor[rk]||{}; 
+        if(rk==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); d="午前優先: 午後のコマが抑制されます。"; } 
+        else if (rk==='lastPeriodSubjects') { DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>hB[`${d}-${p}`]=true)); d="最終コマ優先: 最終コマ以外の枠が抑制されます。"; } 
+        else if (['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(rk)) { const dys=ed.days?.length?ed.days:DAYS, pds=ed.periods?.length?ed.periods.map(p=>parseInt(p.replace('限',''))):PERIODS; if(ed.days?.length||ed.periods?.length){ dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); d=`指定された ${dys.join('')}曜 ${pds.join(',')}限 の配置を禁止します。`; } } 
+        else if (rk==='continuousClasses') { 
+            const prio = document.getElementById('ed-priority')?.value || 'high';
+            const aP2 = document.getElementById('ed-allowP2')?.checked;
+            const aP4 = document.getElementById('ed-allowP4')?.checked;
+            DAYS.forEach(d => {
+                hB[`${d}-1`] = 'blue'; hB[`${d}-3`] = 'blue'; hB[`${d}-5`] = 'blue';
+                if (prio === 'low') {
+                    if (aP2) hB[`${d}-2`] = 'yellow';
+                    if (aP4) hB[`${d}-4`] = 'yellow';
+                }
+            });
+            d = "青:推奨枠(1,3,5限始) / 黄:妥協枠(許可時のみ) / 無色:禁止"; 
+        } 
+        actions.applyPreviewUI(aB, hB, d); 
+    },
     hoverRule: (k) => { if(state.advancedRules[k]) actions.updatePreviewFromEditor(k); },
-    hoverListRule: (k,i) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="選択中のルール範囲"; const r=state.advancedRules[k][i]; if(k==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); } else if(['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(k)){ const dys=r.days||(r.day?[r.day]:DAYS), pds=r.periods?r.periods.map(p=>parseInt(p.replace('限',''))):(r.period?[r.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); } else if (k==='continuousClasses' && r.strictFrame) { DAYS.forEach(d=>[2,4,6].forEach(p=>hB[`${d}-${p}`]=true)); } actions.applyPreviewUI(aB, hB, d); },
+    hoverListRule: (k,i) => { 
+        const aB=actions.calculateActiveBlocks(); let hB={}; let d="選択中のルール範囲"; 
+        const r=state.advancedRules[k][i]; 
+        if(k==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); } 
+        else if(['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(k)){ const dys=r.days||(r.day?[r.day]:DAYS), pds=r.periods?r.periods.map(p=>parseInt(p.replace('限',''))):(r.period?[r.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); } 
+        else if (k==='continuousClasses') { 
+            DAYS.forEach(d => {
+                hB[`${d}-1`] = 'blue'; hB[`${d}-3`] = 'blue'; hB[`${d}-5`] = 'blue';
+                if (r.priority === 'low') {
+                    if (r.allowPeriod2) hB[`${d}-2`] = 'yellow';
+                    if (r.allowPeriod4) hB[`${d}-4`] = 'yellow';
+                }
+            });
+            d = "青:推奨枠 / 黄:妥協枠 / 無色:禁止";
+        } 
+        actions.applyPreviewUI(aB, hB, d); 
+    },
 
     // 基本データ管理 UI操作
     setDashTab:(t)=>{ state.dashTab=t; render(); },
@@ -788,11 +849,11 @@ window.actions = {
     
     // セーブ・ロード
     openQuickSaveModal: () => { const slots=Array.from({length:10},(_,i)=>i+1); let h=`<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">💾 セーブ/ロード (全10スロット)</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold">✕</button></div><div class="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1 flex-1">`;
-        slots.forEach(i=>{ let m=null; try{m=JSON.parse(localStorage.getItem('tt_v15_7_5_10_meta_'+i));}catch(e){} const isEmpty=!m;
+        slots.forEach(i=>{ let m=null; try{m=JSON.parse(localStorage.getItem('tt_v15_9_0_meta_'+i));}catch(e){} const isEmpty=!m;
             h+=`<div class="flex items-center justify-between p-3 border rounded-xl ${isEmpty?'bg-slate-50 border-dashed':'bg-white shadow-sm'}"><div class="flex flex-col"><span class="text-[10px] font-black text-slate-400">Slot ${i}</span><span class="text-xs font-bold ${isEmpty?'text-slate-300':'text-slate-700'}">${isEmpty?'空きスロット':m.name}</span><span class="text-[8px] text-slate-400">${isEmpty?'':m.time}</span></div><div class="flex gap-1"><button onclick="actions.quickSave(${i})" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold">セーブ</button><button onclick="actions.quickLoad(${i})" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-bold ${isEmpty?'opacity-30 cursor-not-allowed':''}" ${isEmpty?'disabled':''}>ロード</button></div></div>`;
         }); h+=`</div>`; document.getElementById('modal-body').innerHTML=h; document.getElementById('modal-overlay').classList.remove('hidden'); },
-    quickSave: (s) => { const un=state.unassigned?.length||0, n=prompt("保存名を入力してください", `未配置${un} - ${new Date().toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`); if(!n)return; const meta={name:n,time:new Date().toLocaleString()}; try{ localStorage.setItem('tt_v15_7_5_10_save_'+s,JSON.stringify(state)); localStorage.setItem('tt_v15_7_5_10_meta_'+s,JSON.stringify(meta)); showToast("保存しました","success"); actions.openQuickSaveModal(); }catch(e){showToast("保存容量不足","error");} },
-    quickLoad: (s) => { if(confirm("データを読み込みますか？")){ const d=localStorage.getItem('tt_v15_7_5_10_save_'+s); if(d){ Object.assign(state,JSON.parse(d)); forceInitState(); render(); showToast("読み込み完了","success"); actions.closeModal(); } } },
+    quickSave: (s) => { const un=state.unassigned?.length||0, n=prompt("保存名を入力してください", `未配置${un} - ${new Date().toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`); if(!n)return; const meta={name:n,time:new Date().toLocaleString()}; try{ localStorage.setItem('tt_v15_9_0_save_'+s,JSON.stringify(state)); localStorage.setItem('tt_v15_9_0_meta_'+s,JSON.stringify(meta)); showToast("保存しました","success"); actions.openQuickSaveModal(); }catch(e){showToast("保存容量不足","error");} },
+    quickLoad: (s) => { if(confirm("データを読み込みますか？")){ const d=localStorage.getItem('tt_v15_9_0_save_'+s); if(d){ Object.assign(state,JSON.parse(d)); forceInitState(); render(); showToast("読み込み完了","success"); actions.closeModal(); } } },
 
     // スプレッドシート出力
     openExportModal: () => { let html = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">📤 スプレッドシートに出力</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold">✕</button></div><div class="flex flex-col gap-4 overflow-y-auto pr-1 flex-1 min-h-0"><div class="flex flex-col gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200"><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-mat-class" checked class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (クラス軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-mat-teacher" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (教員軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-mat-room" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (教室軸)</span></label><div class="h-px bg-slate-200 my-2"></div><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-ind-class" checked class="w-5 h-5 text-blue-600"><span class="font-black text-sm">各クラス用時間割 (配布用)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-ind-teacher" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">各教員用時間割 (配布用)</span></label></div><div class="flex justify-end mt-2"><button onclick="actions.exportToSpreadsheetExec()" class="m3-btn-primary px-10">実行して出力</button></div></div>`; document.getElementById('modal-body').innerHTML = html; document.getElementById('modal-overlay').classList.remove('hidden'); },
@@ -897,7 +958,7 @@ window.actions = {
                         const tgs = (r.targets?.length) ? r.targets : [undefined]; const excs = (r.excludes?.length) ? r.excludes : [undefined]; const subs = (r.subjects?.length) ? r.subjects : [undefined]; const dys = (r.days?.length) ? r.days : [undefined]; const pds = (r.periods?.length) ? r.periods : [undefined]; 
                         tgs.forEach(tg => excs.forEach(ex => subs.forEach(su => dys.forEach(dy => pds.forEach(pd => { 
                             let nr = {}; if (tg) nr.grade = tg; if (ex) nr.exclude = ex; if (su) nr.subject = su; if (dy) nr.day = dy; if (pd) nr.period = parseInt(pd.toString().replace('限','')); 
-                            if (k === 'continuousClasses') { nr.strictFrame = !!r.strictFrame; nr.priority = r.priority || 'high'; }
+                            if (k === 'continuousClasses') { nr.priority = r.priority || 'high'; nr.allowPeriod2 = !!r.allowPeriod2; nr.allowPeriod4 = !!r.allowPeriod4; }
                             exR.push(nr); 
                         }))))); 
                     } 
@@ -907,7 +968,7 @@ window.actions = {
             // 緩和モード
             if (state.marathon.relaxRules && pS.advancedRules.priorities) {
                 Object.keys(pS.advancedRules.priorities).forEach(k => { pS.advancedRules.priorities[k] = 'low'; });
-                if (pS.advancedRules.continuousClasses) { pS.advancedRules.continuousClasses.forEach(rc => { rc.priority = 'low'; }); }
+                if (pS.advancedRules.continuousClasses) { pS.advancedRules.continuousClasses.forEach(rc => { rc.priority = 'low'; rc.allowPeriod2 = true; rc.allowPeriod4 = true; }); }
             }
         } 
         return pS; 
