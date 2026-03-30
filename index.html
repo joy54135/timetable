@@ -141,6 +141,18 @@ function showLoading(t,d,showCancel=false, statusText=""){
 }
 function hideLoading(){ stopGenTimer(); const l=document.getElementById('loading-overlay'); if(l)l.classList.replace('flex','hidden'); }
 
+let genTimerInterval = null, sessionStartTime = null, globalStartTime = null;
+function startGenTimer() {
+    sessionStartTime = Date.now(); if (!globalStartTime) globalStartTime = Date.now();
+    if(genTimerInterval) clearInterval(genTimerInterval);
+    genTimerInterval = setInterval(() => {
+        const tEl = document.getElementById('loading-timer'), gEl = document.getElementById('global-timer-display'), now = Date.now();
+        if(tEl && sessionStartTime) tEl.innerText = ((now - sessionStartTime) / 1000).toFixed(1) + 's';
+        if(gEl && globalStartTime) gEl.innerText = `累計経過時間: ${((now - globalStartTime) / 1000).toFixed(1)}s`;
+    }, 100);
+}
+function stopGenTimer() { clearInterval(genTimerInterval); genTimerInterval = null; }
+
 function getSubjectColor(s){
   if(!s)return 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
   if(s.includes('国')||s.includes('書'))return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800/60';
@@ -179,6 +191,7 @@ function render(){
             </button>
             <button onclick="actions.openQuickSaveModal()" class="text-[9px] font-black bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 px-2 py-1.5 rounded-lg shadow-sm">💾 記録</button>
             <button onclick="actions.exportData()" class="text-[9px] font-black bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 px-2 py-1.5 rounded-lg shadow-sm">📤 出力</button>
+            <button onclick="actions.importData()" class="text-[9px] font-black bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 px-2 py-1.5 rounded-lg shadow-sm">📥 読込</button>
             <button onclick="actions.hardReset()" class="text-[9px] font-black bg-rose-50 dark:bg-rose-900/30 text-rose-500 dark:text-rose-400 border border-rose-100 dark:border-rose-800/50 px-2 py-1.5 rounded-lg shadow-sm">🗑️ リセット</button>
         `;
     }
