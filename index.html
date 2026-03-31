@@ -51,7 +51,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
             <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 16.8.10 (Ultimate UI/UX)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 16.8.100 (Ultimate UI/UX)</div>
             </div>
             <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
         </div>
@@ -74,7 +74,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 </div>
 
 <script>
-var GAS_URL="https://script.google.com/macros/s/AKfycby1WS1JEBJDUTWsRfYlFwxn5YXdYakYypYNIdCOatAS9rsO23pyl_-aNkW3cim5tYdxWA/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbw9gkmBEXBpIDOYWfHb84aEvfPALJeTJ0_R8xXwFsqxBuk_2yPJDCJO9E0B58-eL_YW/exec";
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'];
 function getDynamicPeriods() { let m=6; if(state.periods) Object.values(state.periods).forEach(dObj=>Object.values(dObj).forEach(v=>{if(parseInt(v)>m)m=parseInt(v);})); return Array.from({length:m},(_,i)=>i+1); }
 
