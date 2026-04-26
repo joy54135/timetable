@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.2.0</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.2.1</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>tailwind.config={darkMode:'class'}</script>
@@ -55,7 +55,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
             <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.2.0 (SS-Sync & Intelli-Move)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.2.1 (Error-Handling Update)</div>
             </div>
             <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
         </div>
@@ -124,8 +124,8 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 
 <script>
 var GAS_URL="https://script.google.com/macros/s/AKfycbyBGtPeS-wJycxNwPTFWBAXZG2iJ2o27oaAgtE-VgPd9QPISq8JTmOawTn9W3csfpJL/exec";
-const STORAGE_KEY_DRAFT = 'tt_v17_2_0_draft';
-const STORAGE_KEY_SLOTS = 'tt_v17_2_0_slots';
+const STORAGE_KEY_DRAFT = 'tt_v17_2_1_draft';
+const STORAGE_KEY_SLOTS = 'tt_v17_2_1_slots';
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'];
 function getDynamicPeriods() { let m=6; if(state.periods) Object.values(state.periods).forEach(dObj=>Object.values(dObj).forEach(v=>{if(parseInt(v)>m)m=parseInt(v);})); return Array.from({length:m},(_,i)=>i+1); }
@@ -1212,6 +1212,17 @@ window.actions = {
             if(data.unassigned) state.unassigned = data.unassigned; 
             if(data.scoreCard) state.scoreCard = data.scoreCard; 
             if(data.reportDetails) state.reportDetails = data.reportDetails;
+            
+            // 致命的エラー（Fatal Error）のハンドリング
+            if(data.fatalError) {
+                hideLoading();
+                state.marathon.active = false;
+                render();
+                showToast("致命的な矛盾を検知しました", "error");
+                setTimeout(actions.openFatalErrorModal, 500);
+                return;
+            }
+
             if(data.success){ 
                 const bc = document.getElementById('loading-best-container'), br = document.getElementById('loading-best-record'), lr = document.getElementById('loading-latest-record'); 
                 if(bc && lr){ bc.classList.remove('hidden'); bc.classList.add('flex'); lr.innerText = data.unassigned.length; } 
@@ -1249,13 +1260,49 @@ window.actions = {
             if(data.unassigned) state.unassigned=data.unassigned; 
             if(data.scoreCard) state.scoreCard=data.scoreCard; 
             if(data.reportDetails) state.reportDetails=data.reportDetails; 
+            
+            // 致命的エラー（Fatal Error）のハンドリング
+            if(data.fatalError) {
+                hideLoading();
+                render();
+                showToast("致命的な矛盾を検知しました", "error");
+                setTimeout(actions.openFatalErrorModal, 500);
+                return;
+            }
+
             if(data.success) { state.currentStep=10; actions.initScheduleHistory(); render(); hideLoading(); } 
             else { showToast("エラー","error"); hideLoading(); } 
         } catch(e) { showToast("通信エラー","error"); hideLoading(); } 
     },
     
+    // エラーレポートモーダル (Fatal Error 専用)
+    openFatalErrorModal: () => {
+        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2"><h3 class="text-lg font-black text-rose-600">🚨 致命的な配置エラー</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-3 pb-4">`; 
+        h += `<div class="bg-rose-50 text-rose-800 p-3 rounded-lg text-sm font-bold border border-rose-200 shadow-sm">以下の理由により、AIが時間割を組むことができませんでした。<br>ダッシュボードで「全解除」ボタンを押してピン留め（固定）を外すか、条件を緩和してください。</div>`;
+        if (state.reportDetails && Object.keys(state.reportDetails).length > 0) {
+            Object.values(state.reportDetails).forEach(r => {
+                h += `<div class="bg-white p-3 rounded-xl border border-rose-300 shadow-sm"><div class="font-black text-rose-700 text-sm mb-1">${r.target} ${r.subject}</div>`;
+                r.causes.forEach(c => {
+                    h += `<div class="text-xs text-slate-700 font-bold">・${c.detail}</div>`;
+                });
+                h += `</div>`;
+            });
+        } else {
+            h += `<div class="text-sm font-bold text-slate-600">詳細なエラー情報がありません。</div>`;
+        }
+        document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden');
+    },
+
     openReportModal:()=>{ 
         const sc = state.scoreCard; 
+        if(!sc) {
+            // スコアカードがない場合（FatalError等）はエラーレポートへフォールバック
+            if(state.reportDetails && Object.keys(state.reportDetails).length > 0) {
+                actions.openFatalErrorModal();
+                return;
+            }
+            return;
+        }
         let h = `<div class="flex justify-between items-center mb-4 border-b pb-2"><h3 class="text-lg font-black text-blue-900">📊 AI自己採点レポート</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-3 pb-4">`; 
         h += `<div class="bg-blue-50 dark:bg-slate-800 p-4 rounded-xl border border-blue-200 shrink-0"><div class="flex justify-between items-center"><span class="font-black text-sm text-blue-900 dark:text-blue-300">基礎ルール (配置率)</span><span class="font-black text-2xl text-blue-600">${sc.basic?.score||0}%</span></div></div>`; 
         const rules = sc.advanced?.rules || {}; 
