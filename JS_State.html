@@ -1,0 +1,343 @@
+<script>
+var GAS_URL="https://script.google.com/macros/s/AKfycbyBGtPeS-wJycxNwPTFWBAXZG2iJ2o27oaAgtE-VgPd9QPISq8JTmOawTn9W3csfpJL/exec";
+const STORAGE_KEY_DRAFT = 'tt_v17_4_0_draft';
+const STORAGE_KEY_SLOTS = 'tt_v17_4_0_slots';
+
+var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'];
+function getDynamicPeriods() { let m=6; if(state.periods) Object.values(state.periods).forEach(dObj=>Object.values(dObj).forEach(v=>{if(parseInt(v)>m)m=parseInt(v);})); return Array.from({length:m},(_,i)=>i+1); }
+
+var stepTitles=["1.基本設定","2.行事・不可枠","3.教科と教室","4.教員名簿と不可枠","5.特殊授業ビルダー","6.クラス担当設定","7.持ち時数確認","8.配置ルール詳細","9.最終確認","10.ダッシュボード"];
+var marathonGens=[10, 30, 50, 100, Infinity];
+
+const step8Packages=[
+  {id:"pkg1", title:"【基本設定】", desc:"授業の分散や連続設定など", items:[{key:"limitOneSubjectPerDayStrict", type:"boolean", title:"同日重複を禁止(分散)", desc:"", tip:""},{key:"limitContinuousToSpecificPeriods", type:"boolean", title:"連続授業を特定の枠に限定", desc:"", tip:""},{key:"continuousClasses", type:"array", fields:['target','exclude','subject'], format:"", title:"連続授業（ニコイチ）", desc:"", tip:""},{key:"exclusivePairs", type:"array", fields:['subject1','subject2'], format:"", title:"同日実施回避(排他ペア)", desc:"", tip:""},{key:"maxIntervalSubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"実施日を離す教科", desc:"", tip:""}]},
+  {id:"pkg2", title:"【教員配慮設定】", desc:"学年会議などの予定同期", items:[{key:"homeroomOnlyTimes", type:"array", fields:['target','exclude','day','period'], format:"", title:"担任授業固定枠(専科ブロック)", desc:"", tip:""},{key:"avoidSpecialistTimes", type:"array", fields:['day','period'], format:"", title:"専科回避指定枠", desc:"", tip:""},{key:"homeroomBufferSubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"担任裁量バッファ", desc:"", tip:""}]},
+  {id:"pkg3", title:"【児童配慮設定】", desc:"集中度に合わせた教科配置", items:[{key:"amPrioritySubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"午前に優先配置", desc:"", tip:""},{key:"lastPeriodSubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"最終コマに優先配置", desc:"", tip:""},{key:"avoidSpecificTimes", type:"array", fields:['target','exclude','subject','day','period'], format:"", title:"特定の時間帯回避", desc:"", tip:""}]}
+];
+
+var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon:{active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best:{unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, editingTeacherId:null, editingSubjectId:null, editingTeacherLimitId:null, specialBuilder:{type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, openSpecialEdits:{}, subjectsUndoStack:[], rulesUndoStack:[], birdEyeMode:false, spotlightSub:'', spotlightTea:'', spotlightTeas:['','','',''], movingLesson:null, violations:{}, conflictingIds:[], activeViolationNode:null, scheduleHistory:[], historyIndex:-1, openTeacherLoadId:null, paintLockMode:false};
+let slotsData = Array(10).fill(null);
+let exportAbortController = null;
+let isPainting = false;
+let paintTargetLock = true;
+let scrollPos={}, activeElId=null;
+let confettiAnimationId = null;
+let celebrationTimeoutIds = [];
+let genTimerInt=null, sStart=null;
+
+function safeFind(arr,k,v){return (arr||[]).find(x=>x[k]===v);}
+function forceInitState(){
+    if(!state.periods) state.periods={}; GRADES.forEach(g=>{if(!state.periods[g]) state.periods[g]={月:5,火:5,水:4,木:5,金:5};});
+    if(!state.rooms?.length) state.rooms=[{id:'r1',name:'校庭',capacity:2,ngTimes:{}},{id:'r2',name:'体育館',capacity:2,ngTimes:{}},{id:'r3',name:'理科室',capacity:1,ngTimes:{}}];
+    if(!state.subjects?.length) state.subjects=[{id:'s1',name:'国語',stdHours:{1:9,2:9,3:7,4:7,5:5,6:5},defaultRoom:'通常教室', gradeRooms:{}},{id:'s2',name:'算数',stdHours:{1:4,2:5,3:5,4:5,5:5,6:5},defaultRoom:'通常教室', gradeRooms:{}}];
+    if(!state.grades) state.grades={1:3,2:3,3:3,4:3,5:3,6:3}; if(!state.classAssignments) state.classAssignments={};
+    GRADES.forEach(g=>{for(let i=1;i<=(parseInt(state.grades[g])||1);i++){let c=`${g}-${i}`;if(!state.classAssignments[c]) state.classAssignments[c]={homeroom:'',overrides:{}};}});
+    if(!state.advancedRules) state.advancedRules={priorities:{}}; if(!state.ruleEditor) state.ruleEditor={}; if(!state.openPkgs) state.openPkgs={};
+    if(!state.specialBuilder) state.specialBuilder={type:'joint', subjectId:(state.subjects[0]?.id||''), hours:1, room:'通常教室', targets:[], teachers:[]};
+    if(!state.openSpecialEdits) state.openSpecialEdits={}; if(!state.subjectsUndoStack) state.subjectsUndoStack=[]; if(!state.rulesUndoStack) state.rulesUndoStack=[];
+    state.birdEyeMode=false; state.spotlightSub=''; state.spotlightTea=''; if(!state.spotlightTeas) state.spotlightTeas=['','','','']; state.movingLesson=null; state.violations={}; state.conflictingIds=[];
+    if(!state.scheduleHistory) state.scheduleHistory=[]; if(state.historyIndex===undefined) state.historyIndex=-1; if(state.openTeacherLoadId===undefined) state.openTeacherLoadId=null;
+    if(state.paintLockMode===undefined) state.paintLockMode=false;
+}
+
+function load(){ 
+    try{
+        const d=localStorage.getItem(STORAGE_KEY_DRAFT);
+        if(d)Object.assign(state,JSON.parse(d));
+        
+        const s=localStorage.getItem(STORAGE_KEY_SLOTS);
+        if(s)slotsData = JSON.parse(s);
+    }catch(e){} 
+    forceInitState(); 
+    setupPaintListeners();
+    render(); 
+}
+
+function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-blue-600 text-white')}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
+function showLoading(t,d,showC=false){const l=document.getElementById('loading-overlay'),cBtn=document.getElementById('btn-cancel-gen');if(l){document.getElementById('loading-title').innerText=t;document.getElementById('loading-desc').innerText=d;if(showC)cBtn.classList.remove('hidden');else cBtn.classList.add('hidden');l.classList.replace('hidden','flex');}}
+function hideLoading(){stopGenTimer();const l=document.getElementById('loading-overlay');if(l)l.classList.replace('flex','hidden');}
+function startGenTimer(){sStart=Date.now();if(genTimerInt)clearInterval(genTimerInt);genTimerInt=setInterval(()=>{const t=document.getElementById('loading-timer');if(t&&sStart)t.innerText=((Date.now()-sStart)/1000).toFixed(1)+'s';},100);} function stopGenTimer(){clearInterval(genTimerInt);genTimerInt=null;}
+
+function getDefaultHexColor(sub){if(!sub)return '#F8FAFC';if(sub.includes('国')||sub.includes('書'))return '#EFF6FF';if(sub.includes('算')||sub.includes('数'))return '#FEFCE8';if(sub.includes('体'))return '#FEF2F2';if(sub.includes('理'))return '#F0FDF4';if(sub.includes('社'))return '#FFF7ED';if(sub.includes('外')||sub.includes('英'))return '#FAF5FF';if(sub.includes('音'))return '#FDF2F8';if(sub.includes('図')||sub.includes('工'))return '#ECFEFF';return '#F8FAFC';}
+function getSubjectStyle(sName){const s=safeFind(state.subjects,'name',sName);if(s&&s.color){const res=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(s.color);if(res)return `background-color:rgba(${parseInt(res[1],16)},${parseInt(res[2],16)},${parseInt(res[3],16)},0.25);border:1px solid rgba(${parseInt(res[1],16)},${parseInt(res[2],16)},${parseInt(res[3],16)},0.7);color:${s.color};font-weight:900;`;}return '';}
+function getSubjectColorClass(sName){const s=safeFind(state.subjects,'name',sName);if(s&&s.color)return 'shadow-sm';const sub=sName?sName.toLowerCase():'';if(sub.includes('国')||sub.includes('書'))return 'bg-blue-50 text-blue-800 border-blue-200';if(sub.includes('算')||sub.includes('数'))return 'bg-yellow-50 text-yellow-800 border-yellow-200';if(sub.includes('体'))return 'bg-red-50 text-red-800 border-red-200';if(sub.includes('理'))return 'bg-green-50 text-green-800 border-green-200';if(sub.includes('社'))return 'bg-orange-50 text-orange-800 border-orange-200';if(sub.includes('外')||sub.includes('英'))return 'bg-purple-50 text-purple-800 border-purple-200';if(sub.includes('音'))return 'bg-pink-50 text-pink-800 border-pink-200';if(sub.includes('図')||sub.includes('工'))return 'bg-cyan-50 text-cyan-800 border-cyan-200';return 'bg-slate-50 text-slate-800 border-slate-200';}
+
+function getTeacherLoadDetails(){let loads={};(state.teachers||[]).forEach(t=>loads[t.id]={total:0,items:[]});Object.keys(state.classAssignments||{}).forEach(cls=>{const g=cls.split('-')[0],d=state.classAssignments[cls];(state.subjects||[]).forEach(sub=>{let hrs=parseInt(sub.stdHours?.[g])||0;if(hrs===0)return;if((state.specialBlocks||[]).some(b=>b.subjectId===sub.id&&b.targets?.includes(cls)))return;const ovr=d.overrides?.[sub.id]||{};if(ovr.allocations?.length>0){ovr.allocations.forEach(a=>{if(a.teacherId&&loads[a.teacherId]){let h=parseInt(a.hours)||0;loads[a.teacherId].total+=h;loads[a.teacherId].items.push({cls,sub:sub.name,hrs:h});}});}else{const tid=ovr.teacherId||d.homeroom;if(tid&&loads[tid]){loads[tid].total+=hrs;loads[tid].items.push({cls,sub:sub.name,hrs});}}});});(state.specialBlocks||[]).forEach(b=>{const subName=safeFind(state.subjects,'id',b.subjectId)?.name||'特殊';(b.teachers||[]).forEach(bt=>{if(bt.id&&loads[bt.id]){let h=parseInt(bt.hours)||0;loads[bt.id].total+=h;loads[bt.id].items.push({cls:(b.targets||[]).join(','),sub:subName,hrs:h,sp:true});}});});return loads;}
+function getTeacherLoads(){let l={};const dets=getTeacherLoadDetails();Object.keys(dets).forEach(k=>l[k]=dets[k].total);return l;}
+
+function findLessonById(id) {
+    if(state.generatedSchedule) {
+        for(let d of DAYS) {
+            for(let p of getDynamicPeriods()) {
+                let l = (state.generatedSchedule[d]?.[p]||[]).find(x=>x.id===id);
+                if(l) return l;
+            }
+        }
+    }
+    return (state.unassigned||[]).find(x=>x.id===id);
+}
+
+function checkSlotSuitability(d, p, targetCls, movingLesson) {
+    if (!movingLesson) return { status: 'none', messages: [] };
+    let msgs = [];
+    let status = 'safe';
+
+    const g = targetCls ? targetCls.split('-')[0] : '';
+    if (g && p > (state.periods[g]?.[d] || 0)) return { status: 'danger', messages: ['学年時限外'] };
+    if (state.globalBlocks[`${d}-${p}`]) return { status: 'danger', messages: ['全校不可枠'] };
+
+    let isTeacherDanger = false;
+    (movingLesson.teacherIds || []).forEach(tid => {
+        const t = safeFind(state.teachers, 'id', tid);
+        if (t?.ngTimes?.[`${d}-${p}`]) {
+            isTeacherDanger = true;
+            msgs.push(`${t.name}先生: NG枠`);
+        }
+        const concurrent = (state.generatedSchedule?.[d]?.[p] || []).filter(l => 
+            l.id !== movingLesson.id && l.teacherIds?.includes(tid)
+        );
+        if (concurrent.length > 0) {
+            isTeacherDanger = true;
+            msgs.push(`${t.name}先生: 重複`);
+        }
+    });
+    if(isTeacherDanger) status = 'danger';
+
+    if(status !== 'danger' && movingLesson.room && movingLesson.room !== '通常教室') {
+        const roomDef = safeFind(state.rooms, 'name', movingLesson.room);
+        if (roomDef) {
+            const concurrent = (state.generatedSchedule?.[d]?.[p] || []).filter(l => 
+                l.id !== movingLesson.id && l.room === movingLesson.room
+            );
+            if (concurrent.length >= (roomDef.capacity || 1)) {
+                status = 'danger';
+                msgs.push(`教室満室: ${movingLesson.room}`);
+            }
+        }
+    }
+
+    if(status === 'safe' && targetCls) {
+        const sameDay = [];
+        Object.values(state.generatedSchedule?.[d] || {}).forEach(plist => {
+            plist.forEach(l => {
+                if (l.id !== movingLesson.id && l.targets?.includes(targetCls) && l.subject === movingLesson.subject) {
+                    sameDay.push(l);
+                }
+            });
+        });
+        if (sameDay.length > 0) {
+            status = 'warning';
+            msgs.push('同日重複');
+        }
+    }
+
+    return { status, messages: msgs };
+}
+
+function getHintClass(d, p, targetCls) {
+    if (!state.movingLesson || state.paintLockMode) return '';
+    const res = checkSlotSuitability(d, p, targetCls, state.movingLesson);
+    if (res.status === 'safe') return 'slot-safe';
+    if (res.status === 'warning') return 'slot-warning';
+    if (res.status === 'danger') return 'slot-danger';
+    return '';
+}
+
+function saveUIState(){
+    document.querySelectorAll('.custom-scrollbar, .overflow-y-auto, .overflow-auto, .overflow-x-auto').forEach((el)=>{
+        if(el.id) scrollPos[el.id]={t:el.scrollTop, l:el.scrollLeft};
+    });
+    if(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT')) {
+        activeElId = document.activeElement.id;
+    } else {
+        activeElId = null;
+    }
+}
+function restoreUIState(){
+    const doRestore = () => {
+        document.querySelectorAll('.custom-scrollbar, .overflow-y-auto, .overflow-auto, .overflow-x-auto').forEach(el=>{
+            if(el.id && scrollPos[el.id]){ el.scrollTop=scrollPos[el.id].t; el.scrollLeft=scrollPos[el.id].l; }
+        });
+        if(activeElId){ 
+            const el=document.getElementById(activeElId); 
+            if(el && typeof el.focus==='function') {
+                el.focus();
+                if (el.setSelectionRange && (el.type==='text' || el.type==='number')) {
+                    try { const len = el.value.length; el.setSelectionRange(len, len); } catch(e){}
+                }
+            } 
+        }
+    };
+    doRestore(); 
+    setTimeout(doRestore, 10); 
+    setTimeout(doRestore, 50); 
+}
+
+function triggerCelebration() {
+    celebrationTimeoutIds.forEach(clearTimeout);
+    celebrationTimeoutIds = [];
+    if(confettiAnimationId) cancelAnimationFrame(confettiAnimationId);
+    if(typeof confetti === 'function') confetti.reset();
+
+    if(typeof confetti === 'function') {
+        var duration = 4000;
+        var end = Date.now() + duration;
+        (function frame() {
+            confetti({ particleCount: 6, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff'], zIndex: 400 });
+            confetti({ particleCount: 6, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff'], zIndex: 400 });
+            if (Date.now() < end) {
+                confettiAnimationId = requestAnimationFrame(frame);
+            }
+        }());
+    }
+    const overlay = document.getElementById('celebration-overlay');
+    const text = document.getElementById('celebration-text');
+    overlay.classList.remove('hidden');
+    void overlay.offsetWidth; 
+    overlay.classList.remove('opacity-0');
+    overlay.classList.add('flex', 'opacity-100');
+    
+    const skipCelebration = () => {
+        if(confettiAnimationId) cancelAnimationFrame(confettiAnimationId);
+        if(typeof confetti === 'function') confetti.reset();
+        celebrationTimeoutIds.forEach(clearTimeout);
+        celebrationTimeoutIds = [];
+        
+        overlay.classList.replace('opacity-100', 'opacity-0');
+        text.classList.remove('scale-100', 'scale-110');
+        text.classList.add('scale-150', 'opacity-0');
+        
+        setTimeout(() => {
+            overlay.classList.add('hidden');
+            overlay.classList.remove('flex');
+            text.className = "text-6xl md:text-[10rem] font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-300 via-pink-500 to-indigo-500 drop-shadow-[0_15px_20px_rgba(0,0,0,0.4)] transform scale-50 opacity-0 transition-all duration-700 ease-out tracking-tighter";
+        }, 500);
+        overlay.removeEventListener('click', skipCelebration);
+    };
+    overlay.addEventListener('click', skipCelebration);
+
+    celebrationTimeoutIds.push(setTimeout(() => {
+        text.classList.remove('scale-50', 'opacity-0');
+        text.classList.add('scale-110', 'opacity-100');
+        celebrationTimeoutIds.push(setTimeout(() => {
+            text.classList.replace('scale-110', 'scale-100');
+        }, 300));
+    }, 100));
+
+    celebrationTimeoutIds.push(setTimeout(() => {
+        skipCelebration();
+    }, 4000));
+}
+
+function validateSchedule() {
+    state.violations = {}; state.conflictingIds = [];
+    const schedule = state.generatedSchedule;
+    if(!schedule) return;
+    const PERIODS = getDynamicPeriods(), confSet = new Set(), dailyCls = {};
+    
+    DAYS.forEach(d => {
+        dailyCls[d] = {};
+        PERIODS.forEach(p => {
+            const ls = schedule[d]?.[p] || [];
+            const tMap = {}, rMap = {};
+            ls.forEach(l => {
+                l.teacherIds.forEach(tid => { if(!tMap[tid]) tMap[tid]=[]; tMap[tid].push(l); });
+                if(l.room && safeFind(state.rooms, 'name', l.room)) { if(!rMap[l.room]) rMap[l.room]=[]; rMap[l.room].push(l); }
+                l.targets.forEach(c => {
+                    if(!dailyCls[d][c]) dailyCls[d][c]={};
+                    if(!dailyCls[d][c][l.subject]) dailyCls[d][c][l.subject]=[];
+                    dailyCls[d][c][l.subject].push({lesson: l, period: p});
+                });
+            });
+            
+            Object.keys(tMap).forEach(tid => {
+                const uniqueLessons = [];
+                const seenIds = new Set();
+                tMap[tid].forEach(l => {
+                    if(!seenIds.has(l.id)) {
+                        seenIds.add(l.id);
+                        uniqueLessons.push(l);
+                    }
+                });
+                
+                if(uniqueLessons.length > 1) {
+                    const tName = safeFind(state.teachers, 'id', tid)?.name || '不明';
+                    uniqueLessons.forEach(l => {
+                        if(!state.violations[l.id]) state.violations[l.id]=[];
+                        const ots = uniqueLessons.filter(x=>x.id!==l.id);
+                        state.violations[l.id].push(`教員重複: ${tName}先生が別々の授業(${ots.map(x=>x.subject).join('・')})に配置されています`);
+                        ots.forEach(x=>confSet.add(x.id));
+                    });
+                }
+            });
+            
+            Object.keys(rMap).forEach(rName => {
+                const roomDef = safeFind(state.rooms, 'name', rName);
+                if(roomDef) {
+                    const cap = roomDef.capacity || 1;
+                    const uniqueLessons = [];
+                    const seenIds = new Set();
+                    rMap[rName].forEach(l => {
+                        if(!seenIds.has(l.id)) {
+                            seenIds.add(l.id);
+                            uniqueLessons.push(l);
+                        }
+                    });
+                    if(uniqueLessons.length > cap) {
+                        uniqueLessons.forEach(l => {
+                            if(!state.violations[l.id]) state.violations[l.id]=[];
+                            const ots = uniqueLessons.filter(x=>x.id!==l.id);
+                            state.violations[l.id].push(`教室重複: ${rName}が定員オーバー(他: ${ots.map(x=>x.subject).join('・')})`);
+                            ots.forEach(x=>confSet.add(x.id));
+                        });
+                    }
+                }
+            });
+        });
+    });
+    
+    DAYS.forEach(d => {
+        Object.keys(dailyCls[d]).forEach(c => {
+            Object.keys(dailyCls[d][c]).forEach(s => {
+                const items = dailyCls[d][c][s];
+                const uniqueIds = new Set(items.map(x => x.lesson.id));
+                if(uniqueIds.size > 1) {
+                    items.forEach(item => {
+                        const l = item.lesson;
+                        if(!state.violations[l.id]) state.violations[l.id]=[];
+                        const msg = `同日重複: ${c}の${s}が同日に複数(別コマとして)配置されています`;
+                        if(!state.violations[l.id].includes(msg)) state.violations[l.id].push(msg);
+                        items.filter(x=>x.lesson.id!==l.id).forEach(x=>confSet.add(x.lesson.id));
+                    });
+                }
+            });
+        });
+    });
+    state.conflictingIds = Array.from(confSet);
+}
+
+function isBannedArea(d, p, rowId, mode) {
+    if(!d || !p) return false;
+    if(state.movingLesson) {
+        let banned = false;
+        state.movingLesson.targets.forEach(cls => {
+            const g = cls.split('-')[0];
+            if(p > (state.periods[g]?.[d]||0)) banned = true;
+        });
+        state.movingLesson.teacherIds.forEach(tid => {
+            const t = safeFind(state.teachers, 'id', tid);
+            if(t && t.ngTimes && t.ngTimes[`${d}-${p}`]) banned = true;
+        });
+        return banned;
+    }
+    if(mode === 'class' && rowId) {
+        const g = rowId.split('-')[0];
+        if(p > (state.periods[g]?.[d]||0)) return true;
+    }
+    if(mode === 'teacher' && rowId) {
+        const t = safeFind(state.teachers, 'id', rowId);
+        if(t && t.ngTimes && t.ngTimes[`${d}-${p}`]) return true;
+    }
+    return false;
+}
+</script>

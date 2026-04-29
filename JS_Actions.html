@@ -1,0 +1,680 @@
+<script>
+window.actions = {
+    toggleDarkMode: () => { const h = document.documentElement; h.classList.toggle('dark'); localStorage.setItem('tt_theme', h.classList.contains('dark') ? 'dark' : 'light'); },
+    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem(STORAGE_KEY_DRAFT);localStorage.removeItem(STORAGE_KEY_SLOTS);location.reload();}},
+    jumpToResult:()=>{state.currentStep=10;render();},
+    
+    initScheduleHistory: () => {
+        if(state.generatedSchedule && state.unassigned) {
+            state.scheduleHistory = [{ schedule: JSON.parse(JSON.stringify(state.generatedSchedule)), unassigned: JSON.parse(JSON.stringify(state.unassigned)) }];
+            state.historyIndex = 0;
+        }
+    },
+    pushScheduleHistory: () => {
+        if(!state.scheduleHistory) state.scheduleHistory = [];
+        const snapshot = { schedule: JSON.parse(JSON.stringify(state.generatedSchedule)), unassigned: JSON.parse(JSON.stringify(state.unassigned)) };
+        if (state.historyIndex < state.scheduleHistory.length - 1) state.scheduleHistory = state.scheduleHistory.slice(0, state.historyIndex + 1);
+        state.scheduleHistory.push(snapshot);
+        if (state.scheduleHistory.length > 30) { state.scheduleHistory.shift(); state.historyIndex--; }
+        state.historyIndex = state.scheduleHistory.length - 1;
+    },
+    undoSchedule: () => {
+        if (state.historyIndex > 0) {
+            state.historyIndex--;
+            const snap = state.scheduleHistory[state.historyIndex];
+            state.generatedSchedule = JSON.parse(JSON.stringify(snap.schedule)); state.unassigned = JSON.parse(JSON.stringify(snap.unassigned));
+            state.movingLesson = null; validateSchedule(); render(); showToast("操作を戻しました");
+        }
+    },
+    redoSchedule: () => {
+        if (state.historyIndex < (state.scheduleHistory?.length||0) - 1) {
+            state.historyIndex++;
+            const snap = state.scheduleHistory[state.historyIndex];
+            state.generatedSchedule = JSON.parse(JSON.stringify(snap.schedule)); state.unassigned = JSON.parse(JSON.stringify(snap.unassigned));
+            state.movingLesson = null; validateSchedule(); render(); showToast("やり直しました");
+        }
+    },
+
+    openSlotModal: () => {
+        const container = document.getElementById('slot-list-container');
+        container.innerHTML = slotsData.map((slot, i) => {
+            if (!slot) {
+                return `<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                    <span class="text-xs font-bold text-slate-400">スロット ${i+1}: 空き</span>
+                    <button onclick="actions.saveToSlot(${i})" class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-black shadow-sm transition-colors">ここに保存</button>
+                </div>`;
+            }
+            return `<div class="p-3 bg-white dark:bg-slate-800 rounded-xl border border-blue-100 dark:border-slate-700 shadow-sm space-y-2">
+                <div class="flex justify-between items-start">
+                    <input type="text" value="${slot.name}" onblur="actions.renameSlot(${i}, this.value)" class="bg-transparent font-black text-sm text-blue-900 dark:text-blue-300 outline-none focus:border-b border-blue-400 flex-1">
+                    <span class="text-[9px] text-slate-400 font-bold ml-2 shrink-0">${slot.date}</span>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button onclick="actions.saveToSlot(${i})" class="text-[9px] font-black text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 border border-transparent hover:border-blue-200 dark:hover:border-blue-800 px-2 py-1 rounded transition-colors">上書き保存</button>
+                    <button onclick="actions.loadFromSlot(${i})" class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-4 py-1.5 rounded-lg font-black border border-blue-200 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">ロードする</button>
+                </div>
+            </div>`;
+        }).join('');
+        document.getElementById('slot-modal-overlay').classList.remove('hidden');
+    },
+    closeSlotModal: () => { document.getElementById('slot-modal-overlay').classList.add('hidden'); },
+    renameSlot: (i, newName) => {
+        if(slotsData[i]) {
+            slotsData[i].name = newName;
+            localStorage.setItem(STORAGE_KEY_SLOTS, JSON.stringify(slotsData));
+        }
+    },
+    saveToSlot: (i) => {
+        const unassigned = state.unassigned ? state.unassigned.length : '--';
+        const date = new Date().toLocaleString('ja-JP', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+        const stateCopy = JSON.parse(JSON.stringify(state));
+        slotsData[i] = {
+            name: `未配置${unassigned}個_${date}`,
+            date: date,
+            data: stateCopy
+        };
+        localStorage.setItem(STORAGE_KEY_SLOTS, JSON.stringify(slotsData));
+        actions.openSlotModal();
+        showToast(`スロット ${i+1} に保存しました`, "success");
+    },
+    loadFromSlot: (i) => {
+        if(!confirm("現在の編集内容が破棄されます。よろしいですか？")) return;
+        const slotData = slotsData[i].data;
+        Object.assign(state, JSON.parse(JSON.stringify(slotData)));
+        actions.closeSlotModal();
+        try { localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(state)); } catch(e){}
+        render();
+        showToast("ロード完了しました", "success");
+    },
+
+    pushUndoSubjects:()=>{ state.subjectsUndoStack.push(JSON.stringify(state.subjects)); if(state.subjectsUndoStack.length>10) state.subjectsUndoStack.shift(); },
+    undoSubjects:()=>{ if(state.subjectsUndoStack.length>0){ state.subjects=JSON.parse(state.subjectsUndoStack.pop()); render(); showToast("教科設定を戻しました"); }else showToast("戻せる履歴がありません","error"); },
+    addSubject:(n)=>{ actions.pushUndoSubjects(); state.subjects.push({id:'s_'+Date.now(),name:n,stdHours:{1:0,2:0,3:0,4:0,5:0,6:0},defaultRoom:'通常教室',gradeRooms:{}, color: getDefaultHexColor(n)}); render(); },
+    removeSubject:(id)=>{ actions.pushUndoSubjects(); state.subjects=state.subjects.filter(x=>x.id!==id); render(); },
+    setSubjectHour:(id,g,v)=>{ const s=safeFind(state.subjects,'id',id); if(s){ s.stdHours[g]=parseInt(v)||0; render(); }},
+    updateSubject:(id,k,v)=>{ const s=safeFind(state.subjects,'id',id); if(s){ s[k]=v; render(); }},
+    updateGradeRoom:(sid, g, val)=>{ const s=safeFind(state.subjects,'id',sid); if(s){ if(!s.gradeRooms)s.gradeRooms={}; s.gradeRooms[g]=val; render(); }},
+    handleTeacherClick:(id)=>{ state.selectedTeacherId=id; render(); },
+    startEditTeacher:(id)=>{ state.editingTeacherId=id; render(); setTimeout(()=>document.getElementById(`te-nm-${id}`)?.select(),10); },
+    stopEditTeacher:()=>{ state.editingTeacherId=null; render(); },
+    addTeacher:()=>{ state.teachers.push({id:'t_'+Date.now(),name:'教員'+(state.teachers.length+1),maxHours:24,homeroom:'',ngTimes:{},assignments:[]}); render(); },
+    removeTeacher:(id)=>{ state.teachers=state.teachers.filter(x=>x.id!==id); render(); },
+    updateTeacher:(id,k,v)=>{ const t=safeFind(state.teachers,'id',id); if(t){ t[k]=v; render(); }},
+    updateTeacherHomeroom:(tid,cls)=>{ const t=safeFind(state.teachers,'id',tid); if(t)t.homeroom=cls; render(); },
+    toggleTeacherNG:(id,k)=>{ const t=safeFind(state.teachers,'id',id); if(t){ t.ngTimes[k]=!t.ngTimes[k]; render(); }},
+    updateBuilder:(k,v)=>{ state.specialBuilder[k]=v; render(); },
+    toggleBuilderTarget:(cls)=>{ const arr=state.specialBuilder.targets; const idx=arr.indexOf(cls); if(idx>-1) arr.splice(idx,1); else arr.push(cls); render(); },
+    toggleBuilderTeacher:(tid)=>{ const arr=state.specialBuilder.teachers; const idx=arr.indexOf(tid); if(idx>-1) arr.splice(idx,1); else arr.push(tid); render(); },
+    buildSpecialBlock:()=>{ const sb=state.specialBuilder; if(!sb.subjectId||sb.targets.length===0){showToast("教科と対象クラスを選択してください","error");return;} const s=safeFind(state.subjects,'id',sb.subjectId); const newId='sp_'+Date.now(); state.specialBlocks.unshift({id:newId,type:sb.type,subjectId:sb.subjectId,subject:s?s.name:'特殊',room:sb.room,hours:sb.hours,targets:[...sb.targets],teachers:sb.teachers.map(tid=>({id:tid,hours:sb.hours})),limitOnePerDay:false, fixedTimes:[]}); state.specialBuilder.targets=[]; state.specialBuilder.teachers=[]; state.openSpecialEdits[newId]=true; render(); showToast("特殊授業を作成しました","success"); },
+    toggleSpecialEdit:(id)=>{ state.openSpecialEdits[id]=!state.openSpecialEdits[id]; render(); },
+    updateSpecialBlock:(id,k,v)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ b[k]=v; render(); }},
+    removeSpecialBlock:(i)=>{ state.specialBlocks.splice(i,1); render(); },
+    updateSpecialFixedTime:(id,idx,val)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ if(!b.fixedTimes)b.fixedTimes=[]; b.fixedTimes[idx]=val; render(); }},
+    toggleSpecialTarget:(id,cls)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ const i=b.targets.indexOf(cls); if(i>-1)b.targets.splice(i,1); else b.targets.push(cls); render(); }},
+    toggleSpecialTeacher:(id,tid)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ const i=b.teachers.findIndex(x=>x.id===tid); if(i>-1)b.teachers.splice(i,1); else b.teachers.push({id:tid,hours:b.hours}); render(); }},
+
+    pushUndoRules:()=>{ state.rulesUndoStack.push(JSON.stringify(state.advancedRules)); if(state.rulesUndoStack.length>10) state.rulesUndoStack.shift(); },
+    undoRules:()=>{ if(state.rulesUndoStack.length>0){ state.advancedRules=JSON.parse(state.rulesUndoStack.pop()); render(); showToast("ルールを戻しました"); }else showToast("戻せる履歴がありません","error"); },
+    togglePkg:(id)=>{ state.openPkgs[id]=!state.openPkgs[id]; render(); },
+    toggleRuleActive:(k,a)=>{ actions.pushUndoRules(); if(!state.advancedRules)state.advancedRules={priorities:{}}; if(a){ const item=step8Packages.flatMap(p=>p.items).find(i=>i.key===k); state.advancedRules[k]=(item.type==='array'?[]:true); state.advancedRules.priorities[k]='high'; }else{ delete state.advancedRules[k]; delete state.advancedRules.priorities[k]; } render(); },
+    setPriority:(k,v)=>{ state.advancedRules.priorities[k]=v; render(); },
+    renderMultiSelect: (ruleKey, fieldKey, label, options, selectedArr, theme = 'blue') => {
+        let h = `<div class="flex flex-col sm:flex-row sm:items-center gap-1"><span class="text-[9px] font-black text-slate-400 w-10 shrink-0">${label}</span><div class="flex flex-wrap gap-1 flex-1">`;
+        let activeC = 'bg-blue-600 text-white border-blue-700 shadow-sm'; if(theme==='rose') activeC = 'bg-rose-600 text-white border-rose-700 shadow-sm'; else if(theme==='amber') activeC = 'bg-amber-500 text-white border-amber-600 shadow-sm';
+        options.forEach(o => { const isS = selectedArr.includes(o); h += `<button onclick="actions.toggleRuleEditor('${ruleKey}', '${fieldKey}', '${o}')" class="px-2 py-0.5 text-[9px] font-black rounded border transition-all ${isS ? activeC : 'bg-white text-slate-400 hover:bg-slate-50 shadow-sm'}">${o.replace('年生','年').replace('限','')}</button>`; });
+        return h + `</div></div>`;
+    },
+    toggleRuleEditor:(rk,fk,v)=>{ if(!state.ruleEditor[rk]) state.ruleEditor[rk]={}; if(!state.ruleEditor[rk][fk]) state.ruleEditor[rk][fk]=[]; const arr=state.ruleEditor[rk][fk]; const i=arr.indexOf(v); if(i>-1) arr.splice(i,1); else arr.push(v); render(); },
+    clearRuleEditor:(rk)=>{ state.ruleEditor[rk]={}; render(); },
+    addRuleMulti:(rk,fks)=>{ actions.pushUndoRules(); const ed=state.ruleEditor[rk]||{}; let obj={}, ok=true; fks.split(',').forEach(fk=>{ let val=ed[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]; if(!val?.length && fk!=='exclude'){ok=false;} obj[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]=val; }); if(!ok){showToast("選択項目が不足しています","error");return;} state.advancedRules[rk].push(obj); state.ruleEditor[rk]={}; render(); },
+    removeRuleNew:(k,i)=>{ actions.pushUndoRules(); state.advancedRules[k].splice(i,1); render(); },
+    applyPreset:(type)=>{ actions.pushUndoRules(); if(type==='reset') state.advancedRules={priorities:{}}; else if(type==='standard') { state.advancedRules.limitOneSubjectPerDayStrict=true; state.advancedRules.limitContinuousToSpecificPeriods=true; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; state.advancedRules.priorities.limitContinuousToSpecificPeriods='high'; } else if(type==='child') { state.advancedRules.limitOneSubjectPerDayStrict=true; state.advancedRules.amPrioritySubjects=[{targets:["全学年"],subjects:["国語"]},{targets:["全学年"],subjects:["算数"]}]; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; state.advancedRules.priorities.amPrioritySubjects='low'; } render(); },
+
+    setDashTab:(t)=>{ state.dashTab=t; state.movingLesson=null; render(); },
+    setDashView:(v)=>{ state.dashView=v; state.movingLesson=null; render(); },
+    setDashFilter:(f)=>{ state.dashFilter=f; state.movingLesson=null; render(); },
+    setMatrixAxis:(a)=>{ state.matrixAxis=a; state.movingLesson=null; render(); },
+    updateGrade:(g,d)=>{state.grades[g]=Math.max(1,(parseInt(state.grades[g])||0)+d); render();},
+    setGrade:(g,v)=>{state.grades[g]=Math.max(1,parseInt(v)||1); render();},
+    updatePeriod:(g,d,v)=>{if(!state.periods[g])state.periods[g]={}; state.periods[g][d]=Math.max(0,Math.min(6,(parseInt(state.periods[g][d])||0)+v)); render();},
+    setPeriod:(g,d,v)=>{if(!state.periods[g])state.periods[g]={}; state.periods[g][d]=Math.max(0,Math.min(6,parseInt(v)||0)); render();},
+    toggleBlock:(k)=>{state.globalBlocks[k]=!state.globalBlocks[k]; render();},
+    moveItem:(key, idx, dir)=>{ const arr=state[key]; if(!arr)return; const newIdx=idx+dir; if(newIdx<0 || newIdx>=arr.length)return; const temp=arr[idx]; arr[idx]=arr[newIdx]; arr[newIdx]=temp; render(); },
+    toggleTeacherLoad: (tid) => { state.openTeacherLoadId = (state.openTeacherLoadId === tid) ? null : tid; render(); },
+    
+    toggleBirdEye: () => { 
+        state.birdEyeMode = !state.birdEyeMode; 
+        state.movingLesson = null; 
+        if(!state.birdEyeMode) { state.spotlightSub=''; state.spotlightTeas=['','','','']; showToast("ハイライト表示をリセットしました"); }
+        render(); 
+    },
+    setSpotlight: (type, val, idx=0) => { 
+        if(type==='sub') state.spotlightSub = val; 
+        else state.spotlightTeas[idx] = val; 
+        render(); 
+    },
+    clearSpotlight: () => {
+        state.spotlightSub = '';
+        state.spotlightTeas = ['', '', '', ''];
+        render();
+        showToast("ハイライトをリセットしました");
+    },
+    
+    togglePaintLockMode: () => {
+        state.paintLockMode = !state.paintLockMode;
+        if(state.movingLesson) state.movingLesson = null;
+        render();
+        showToast(state.paintLockMode ? "🖌️なぞりロックをONにしました" : "なぞりロックをOFFにしました");
+    },
+    setLock: (id, lockState) => {
+        let l = findLessonById(id);
+        if(l && l.isLocked !== lockState) {
+            l.isLocked = lockState;
+            document.querySelectorAll(`.lesson-cell[data-lesson-id="${id}"]`).forEach(el => {
+                if(lockState) {
+                    el.classList.add('opacity-80', 'saturate-50', 'brightness-90');
+                    if(!el.querySelector('.pin-icon')) {
+                        const pin = document.createElement('div');
+                        pin.className = "pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white";
+                        pin.innerText = "📌";
+                        if(el.closest('#step10-birdeye-scroll')) {
+                             pin.className = "pin-icon absolute -top-0.5 -right-0.5 bg-slate-700 text-white text-[6px] w-2.5 h-2.5 flex items-center justify-center rounded-full shadow-md z-10";
+                        }
+                        el.appendChild(pin);
+                    }
+                } else {
+                    el.classList.remove('opacity-80', 'saturate-50', 'brightness-90');
+                    const pin = el.querySelector('.pin-icon');
+                    if(pin) pin.remove();
+                }
+            });
+            try{localStorage.setItem(STORAGE_KEY_DRAFT,JSON.stringify(state));}catch(e){}
+        }
+    },
+    toggleLock: (id) => {
+        let l = findLessonById(id);
+        if(l) {
+            l.isLocked = !l.isLocked;
+            render();
+            showToast(l.isLocked ? "📌固定しました" : "固定を解除しました");
+        }
+    },
+    lockAll: (doLock) => {
+        if(!state.generatedSchedule) return;
+        DAYS.forEach(d => {
+            getDynamicPeriods().forEach(p => {
+                (state.generatedSchedule[d]?.[p]||[]).forEach(l => l.isLocked = doLock);
+            });
+        });
+        (state.unassigned||[]).forEach(l => l.isLocked = doLock);
+        render();
+        showToast(doLock ? "すべての駒を固定しました" : "すべての固定を解除しました");
+    },
+    lockHomeroom: () => {
+        if(!state.generatedSchedule || !state.classAssignments) return;
+        let count = 0;
+        DAYS.forEach(d => {
+            getDynamicPeriods().forEach(p => {
+                (state.generatedSchedule[d]?.[p]||[]).forEach(l => {
+                    const cls = l.targets[0];
+                    const homeroomId = state.classAssignments[cls]?.homeroom;
+                    if(homeroomId && l.teacherIds.includes(homeroomId)) {
+                        l.isLocked = true;
+                        count++;
+                    }
+                });
+            });
+        });
+        render();
+        showToast(`担任授業を固定しました(${count}コマ)`);
+    },
+
+    handleCellClick: (d, p, cls, lId = null) => {
+        if(state.paintLockMode) return;
+        window.hideViolationPopup();
+        if (!state.generatedSchedule) return;
+        
+        if (!state.movingLesson && lId) {
+            const l = findLessonById(lId);
+            if (l && l.isLocked) {
+                showToast("📌 固定されているため移動できません", "error");
+                return;
+            }
+        }
+
+        if (state.movingLesson) {
+            if (d && p && d !== 'tray') {
+                let targetCls = cls || state.movingLesson.targets[0];
+                const res = checkSlotSuitability(d, p, targetCls, state.movingLesson);
+                if (res.status === 'danger') {
+                    showToast("⚠️ 配置ルールに違反する可能性があります", "error");
+                } else if (res.status === 'warning') {
+                    showToast("💡 連続・同日など一部ルールに抵触します", "info");
+                }
+            }
+
+            const fromL = state.movingLesson;
+            if (fromL.id === lId) { state.movingLesson = null; render(); return; }
+            let schedule = state.generatedSchedule;
+            
+            let movingObj = null;
+            if (fromL.day && fromL.period) {
+                const fromList = schedule[fromL.day]?.[fromL.period] || [];
+                const lIndex = fromList.findIndex(x => x.id === fromL.id);
+                if(lIndex > -1) { movingObj = fromList[lIndex]; fromList.splice(lIndex, 1); }
+            } else {
+                const uIndex = state.unassigned.findIndex(x => x.id === fromL.id);
+                if(uIndex > -1) { movingObj = state.unassigned[uIndex]; state.unassigned.splice(uIndex, 1); }
+            }
+            if (!movingObj) { state.movingLesson = null; render(); return; }
+
+            if (d && p && d !== 'tray') {
+                const toList = schedule[d][p] || [];
+                if (!schedule[d][p]) schedule[d][p] = toList;
+                let targetL = null;
+                if (lId) {
+                    const tIndex = toList.findIndex(x => x.id === lId);
+                    if (tIndex > -1) {
+                        targetL = toList[tIndex];
+                        toList.splice(tIndex, 1);
+                        if (fromL.day && fromL.period) {
+                            if(!schedule[fromL.day][fromL.period]) schedule[fromL.day][fromL.period] = [];
+                            schedule[fromL.day][fromL.period].push(targetL);
+                        } else {
+                            state.unassigned.push(targetL);
+                        }
+                    }
+                }
+                toList.push(movingObj);
+                showToast(targetL ? "コマを入れ替えました" : "コマを移動しました", "success");
+            } else if (d === 'tray') {
+                state.unassigned.push(movingObj);
+                showToast("トレイに戻しました", "success");
+            }
+            state.movingLesson = null;
+            actions.pushScheduleHistory(); 
+            validateSchedule();
+            render();
+        } else {
+            if (!lId) return;
+            if(state.violations && state.violations[lId]) { setTimeout(() => window.showViolationPopup(lId), 10); }
+            
+            if(d === 'tray') {
+                state.movingLesson = { id: lId, day: null, period: null, targets: safeFind(state.unassigned, 'id', lId)?.targets||[], teacherIds: safeFind(state.unassigned, 'id', lId)?.teacherIds||[] };
+            } else {
+                let obj = (state.generatedSchedule[d][p]||[]).find(x=>x.id===lId);
+                if(obj) state.movingLesson = { id: lId, day: d, period: p, cls: cls, targets: obj.targets, teacherIds: obj.teacherIds };
+            }
+            render();
+        }
+    },
+
+    importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読み込み完了","success");};r.readAsText(f);};i.click();},
+    exportData: () => {
+        try {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `時間割データ_${new Date().toLocaleDateString('ja-JP').replace(/\//g,'')}_未配置${state.unassigned?.length||0}.json`);
+            document.body.appendChild(dlAnchorElem);
+            dlAnchorElem.click();
+            dlAnchorElem.remove();
+            showToast("端末へ保存しました", "success");
+        } catch(e) {
+            showToast("保存に失敗しました", "error");
+        }
+    },
+
+    closeModal: () => { document.getElementById('modal-overlay').classList.add('hidden'); },
+    updateRoomName:(id,v)=>{const r=safeFind(state.rooms,'id',id);if(r)r.name=v;render();},
+    updateRoomCap:(id,v)=>{const r=safeFind(state.rooms,'id',id);if(r)r.capacity=Math.max(1,parseInt(v)||1);render();},
+    addRoom:()=>{state.rooms.push({id:'r_'+Date.now(),name:'新教室',capacity:1,ngTimes:{}});render();},
+    removeRoom:(id)=>{state.rooms=state.rooms.filter(x=>x.id!==id);render();},
+    updateSubjectOverride:(cls,sid,k,v)=>{if(!state.classAssignments[cls].overrides)state.classAssignments[cls].overrides={};if(!state.classAssignments[cls].overrides[sid])state.classAssignments[cls].overrides={};if(v==="")delete state.classAssignments[cls].overrides[sid][k];else state.classAssignments[cls].overrides[sid][k]=v;render();},
+    updateSubjectFixedTime:(cls,sid,idx,val)=>{if(!state.classAssignments[cls].overrides)state.classAssignments[cls].overrides={};if(!state.classAssignments[cls].overrides[sid])state.classAssignments[cls].overrides[sid]={};if(!state.classAssignments[cls].overrides[sid].fixedTimes)state.classAssignments[cls].overrides[sid].fixedTimes=[];state.classAssignments[cls].overrides[sid].fixedTimes[idx]=val;render();},
+    updateHomeroom:(cls,tid)=>{if(!state.classAssignments[cls])state.classAssignments[cls]={overrides:{}};state.classAssignments[cls].homeroom=tid;render();},
+    clearAllocations:(cls,sid)=>{if(state.classAssignments[cls].overrides[sid]){delete state.classAssignments[cls].overrides[sid].allocations;render();}},
+    openAllocModal:(cls,sid,h)=>{const cd=state.classAssignments[cls],ov=cd.overrides[sid]||{},rows=ov.allocations?JSON.parse(JSON.stringify(ov.allocations)):[{teacherId:ov.teacherId||cd.homeroom,hours:h}];state.allocationModal={cls,subId:sid,stdHours:h,rows};actions.showAllocModalUI();},
+    showAllocModalUI:()=>{ const m=state.allocationModal; let tOpts='<option value="">担任</option>'+(state.teachers||[]).map(t=>`<option value="${t.id}">${t.name}先生</option>`).join(''); let h=`<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="font-black text-blue-900">${m.cls} ${safeFind(state.subjects,'id',m.subId).name} 担当分担</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar p-1">`; m.rows.forEach((r,i)=>{ h+=`<div class="flex gap-2 items-center bg-slate-50 p-2 rounded-lg mb-2 border"><select onchange="actions.updateAllocRow(${i},'teacherId',this.value)" class="m3-input flex-1 !bg-white">${tOpts.replace(`value="${r.teacherId}"`,`value="${r.teacherId}" selected`)}</select><input type="number" value="${r.hours}" onchange="actions.updateAllocRow(${i},'hours',this.value)" class="w-14 text-center font-black text-blue-600 bg-white border p-1.5 rounded-lg text-sm"><button onclick="actions.removeAllocRow(${i})" class="text-rose-400 font-bold px-2 hover:bg-rose-50 rounded">✕</button></div>`; }); h+=`<button onclick="actions.addAllocRow()" class="w-full py-2 border-2 border-dashed rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-100">+ 教員を追加</button></div><div class="mt-4 flex justify-end shrink-0"><button onclick="actions.saveAllocModal()" class="m3-btn-primary">保存する</button></div>`; document.getElementById('modal-body').innerHTML=h; document.getElementById('modal-overlay').classList.remove('hidden');},
+    updateAllocRow:(i,k,v)=>{if(k==='hours')state.allocationModal.rows[i][k]=Math.max(0,parseInt(v)||0);else state.allocationModal.rows[i][k]=v;actions.showAllocModalUI();},
+    removeAllocRow:(i)=>{state.allocationModal.rows.splice(i,1);actions.showAllocModalUI();},
+    addAllocRow:()=>{state.allocationModal.rows.push({teacherId:'',hours:1});actions.showAllocModalUI();},
+    saveAllocModal:()=>{const m=state.allocationModal,tot=m.rows.reduce((s,r)=>s+(parseInt(r.hours)||0),0);if(tot!==m.stdHours)return showToast(`合計を${m.stdHours}にしてください`,'error');state.classAssignments[m.cls].overrides[m.subId].allocations=m.rows;actions.closeModal();render();},
+
+    preparePayload: () => { 
+        const pS = JSON.parse(JSON.stringify(state)); 
+        if (pS.advancedRules) { 
+            Object.keys(pS.advancedRules).forEach(k => { 
+                if (k === 'priorities') return; 
+                const oR = pS.advancedRules[k]; 
+                if (!Array.isArray(oR)) return; 
+                const exR = []; 
+                oR.forEach(r => { 
+                    if (k === 'exclusivePairs') { 
+                        const s1s = r.subjects1 || [r.subject1]; const s2s = r.subjects2 || [r.subject2]; 
+                        s1s.forEach(s1 => s2s.forEach(s2 => { if(s1 !== s2) exR.push({subject1: s1, subject2: s2}); })); 
+                    } else { 
+                        const tgs = (r.targets?.length) ? r.targets : [undefined]; const excs = (r.excludes?.length) ? r.excludes : [undefined]; const subs = (r.subjects?.length) ? r.subjects : [undefined]; const dys = (r.days?.length) ? r.days : [undefined]; const pds = (r.periods?.length) ? r.periods : [undefined]; 
+                        tgs.forEach(tg => excs.forEach(ex => subs.forEach(su => dys.forEach(dy => pds.forEach(pd => { let nr = {}; if (tg) nr.grade = tg; if (ex) nr.exclude = ex; if (su) nr.subject = su; if (dy) nr.day = dy; if (pd) nr.period = parseInt(pd.toString().replace(/[^0-9]/g, ''), 10); exR.push(nr); }))))); 
+                    } 
+                }); 
+                pS.advancedRules[k] = exR; 
+            }); 
+            if (state.marathon.relaxRules && pS.advancedRules.priorities) {
+                Object.keys(pS.advancedRules.priorities).forEach(k => { pS.advancedRules.priorities[k] = 'low'; });
+            }
+        } 
+        return pS; 
+    },
+
+    updateMarathon: (k,v) => { state.marathon[k] = v; render(); },
+    startGeneration: async function(){ state.marathon.active = true; state.marathon.currentGen = 1; globalStartTime = Date.now(); state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}; actions.runMarathonCycle(); },
+    continueMarathon: async function(){ 
+        const addGen = 10; 
+        state.marathon.active = true; 
+        if(state.marathon.maxGen !== Infinity) state.marathon.maxGen = parseInt(state.marathon.maxGen, 10) + addGen; 
+        actions.runMarathonCycle(); 
+    },
+    continueGeneration: function(){ state.marathon.active = false; actions.runSingleCycle("今の盤面を元に再調整中...", false); },
+    cancelGeneration: () => { hideLoading(); state.marathon.active = false; if (state.best.schedule) { state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; state.currentStep = 10; actions.initScheduleHistory(); showToast(`ベスト盤面を表示します。`, "info"); } else { state.currentStep = 9; } render(); },
+    
+    runMarathonCycle: async function(){ 
+        if (!state.marathon.active) return; 
+        const m = state.marathon; startGenTimer(); 
+        showLoading("AI思考中...", `${Number(m.currentGen)}回目`, true); 
+        try { 
+            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: actions.preparePayload(), currentSchedule: null, unassigned: null }) }); 
+            const data = await res.json(); 
+            if (!state.marathon.active) return; 
+            if(data.schedule) state.generatedSchedule = data.schedule; 
+            if(data.unassigned) state.unassigned = data.unassigned; 
+            if(data.scoreCard) state.scoreCard = data.scoreCard; 
+            if(data.reportDetails) state.reportDetails = data.reportDetails;
+            
+            if(data.fatalError) {
+                hideLoading();
+                state.marathon.active = false;
+                render();
+                showToast("致命的な矛盾を検知しました", "error");
+                setTimeout(actions.openFatalErrorModal, 500);
+                return;
+            }
+
+            if(data.success){ 
+                const bc = document.getElementById('loading-best-container'), br = document.getElementById('loading-best-record'), lr = document.getElementById('loading-latest-record'); 
+                if(bc && lr){ bc.classList.remove('hidden'); bc.classList.add('flex'); lr.innerText = data.unassigned.length; } 
+                if(data.unassigned.length < state.best.unassignedCount) { 
+                    state.best = { unassignedCount: data.unassigned.length, schedule: data.schedule, unassigned: data.unassigned, scoreCard: data.scoreCard, reportDetails: data.reportDetails }; 
+                    if (br) br.innerText = state.best.unassignedCount; 
+                } 
+                const goalReached = state.best.unassignedCount <= m.target, genLimitReached = Number(m.currentGen) >= parseInt(m.maxGen, 10); 
+                
+                if (goalReached || genLimitReached) { 
+                    state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; 
+                    state.currentStep=10; state.marathon.active = false; actions.initScheduleHistory(); render(); hideLoading(); 
+                    
+                    if (state.best.unassignedCount === 0) {
+                        showToast(`🎉 完璧な時間割が完成しました！`, "success"); 
+                        setTimeout(triggerCelebration, 300); 
+                    } else if (goalReached) {
+                        showToast(`目標達成！未配置${state.best.unassignedCount}`, "success"); 
+                    } else {
+                        showToast(`最大チャレンジ回数に到達。`, "success"); 
+                    }
+                } else { 
+                    m.currentGen = Number(m.currentGen) + 1; 
+                    actions.runMarathonCycle(); 
+                } 
+            } else { showToast("エラー発生","error"); hideLoading(); state.marathon.active = false; } 
+        } catch(e) { showToast("通信エラー","error"); hideLoading(); state.marathon.active = false; } 
+    },
+    runSingleCycle: async function(status, isNew){ 
+        startGenTimer(); showLoading("計算中", status, true); 
+        try { 
+            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: actions.preparePayload(), currentSchedule: isNew?null:state.generatedSchedule, unassigned: state.unassigned }) }); 
+            const data = await res.json(); 
+            if(data.schedule) state.generatedSchedule=data.schedule; 
+            if(data.unassigned) state.unassigned=data.unassigned; 
+            if(data.scoreCard) state.scoreCard=data.scoreCard; 
+            if(data.reportDetails) state.reportDetails=data.reportDetails; 
+            
+            if(data.fatalError) {
+                hideLoading();
+                render();
+                showToast("致命的な矛盾を検知しました", "error");
+                setTimeout(actions.openFatalErrorModal, 500);
+                return;
+            }
+
+            if(data.success) { state.currentStep=10; actions.initScheduleHistory(); render(); hideLoading(); } 
+            else { showToast("エラー","error"); hideLoading(); } 
+        } catch(e) { showToast("通信エラー","error"); hideLoading(); } 
+    },
+    
+    openFatalErrorModal: () => {
+        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2"><h3 class="text-lg font-black text-rose-600">🚨 致命的な配置エラー</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-3 pb-4">`; 
+        h += `<div class="bg-rose-50 text-rose-800 p-3 rounded-lg text-sm font-bold border border-rose-200 shadow-sm">以下の理由により、AIが時間割を組むことができませんでした。<br>ダッシュボードで「全解除」ボタンを押してピン留め（固定）を外すか、条件を緩和してください。</div>`;
+        if (state.reportDetails && Object.keys(state.reportDetails).length > 0) {
+            Object.values(state.reportDetails).forEach(r => {
+                h += `<div class="bg-white p-3 rounded-xl border border-rose-300 shadow-sm"><div class="font-black text-rose-700 text-sm mb-1">${r.target} ${r.subject}</div>`;
+                r.causes.forEach(c => {
+                    h += `<div class="text-xs text-slate-700 font-bold">・${c.detail}</div>`;
+                });
+                h += `</div>`;
+            });
+        } else {
+            h += `<div class="text-sm font-bold text-slate-600">詳細なエラー情報がありません。</div>`;
+        }
+        document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden');
+    },
+
+    openReportModal:()=>{ 
+        const sc = state.scoreCard; 
+        if(!sc) {
+            if(state.reportDetails && Object.keys(state.reportDetails).length > 0) {
+                actions.openFatalErrorModal();
+                return;
+            }
+            return;
+        }
+        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2"><h3 class="text-lg font-black text-blue-900">📊 AI自己採点レポート</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-3 pb-4">`; 
+        h += `<div class="bg-blue-50 dark:bg-slate-800 p-4 rounded-xl border border-blue-200 shrink-0"><div class="flex justify-between items-center"><span class="font-black text-sm text-blue-900 dark:text-blue-300">基礎ルール (配置率)</span><span class="font-black text-2xl text-blue-600">${sc.basic?.score||0}%</span></div></div>`; 
+        const rules = sc.advanced?.rules || {}; 
+        Object.keys(rules).forEach(k => { 
+            const r = rules[k], isP = r.score === 100; 
+            h += `<div class="bg-white dark:bg-slate-900 rounded-xl border ${isP ? 'border-emerald-200 shadow-emerald-50' : 'border-amber-300 shadow-amber-50'} shadow-sm overflow-hidden"><div class="px-4 py-2 flex justify-between items-center ${isP ? 'bg-emerald-50' : 'bg-amber-50'} border-b dark:border-slate-800"><span class="font-black text-xs ${isP ? 'text-emerald-800' : 'text-amber-800'}">${r.name}</span><span class="font-black text-sm">${r.score}%</span></div><div class="p-3">${r.failures?.length > 0 ? `<ul class="text-[10px] font-bold text-slate-600 dark:text-slate-400 space-y-1 list-disc pl-4">${r.failures.map(f => `<li>${f}</li>`).join('')}</ul>` : `<div class="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>ミッションクリア！</div>`}</div></div>`; 
+        }); 
+        document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden'); 
+    },
+
+    openExportModal:()=>{
+        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">🖨️ 出力設定 (マルチ印刷)</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4 pb-4 text-sm font-bold text-slate-700">`;
+        h += `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <h4 class="text-xs font-black text-slate-500 mb-3 border-b pb-1">📄 PDF出力 (印刷用)</h4>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="pdf-matrix-class" checked class="w-4 h-4"><span>全校クラス時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="pdf-matrix-teacher" checked class="w-4 h-4"><span>全校教員時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="pdf-matrix-room" class="w-4 h-4"><span>全校教室時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="pdf-indiv-class" checked class="w-4 h-4"><span>各クラス別時間割</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="pdf-indiv-teacher" class="w-4 h-4"><span>各教員別時間割</span></label>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                    <h4 class="text-xs font-black text-emerald-600 mb-3 border-b border-emerald-200 pb-1">📊 スプレッドシート (編集用)</h4>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="ss-matrix-class" checked class="w-4 h-4 text-emerald-600"><span>全校クラス時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="ss-matrix-teacher" checked class="w-4 h-4 text-emerald-600"><span>全校教員時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="ss-matrix-room" class="w-4 h-4 text-emerald-600"><span>全校教室時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="ss-indiv-class" class="w-4 h-4 text-emerald-600"><span>各クラス別時間割</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ss-indiv-teacher" class="w-4 h-4 text-emerald-600"><span>各教員別時間割</span></label>
+                </div>
+              </div>`;
+        h += `<div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200 mt-2">
+                <h4 class="text-xs font-black text-indigo-600 mb-2 border-b border-indigo-200 pb-1">📂 保存先フォルダの指定 (任意)</h4>
+                <p class="text-[10px] text-slate-500 mb-2">GoogleドライブのフォルダURL（またはフォルダID）を貼り付けると、その場所に保存されます。<br>空欄の場合は「マイドライブ」の直下に保存されます。</p>
+                <input type="text" id="export-folder-url" placeholder="https://drive.google.com/drive/folders/..." class="w-full p-2 border rounded-lg bg-white text-xs font-bold outline-none focus:border-indigo-500 mb-1">
+                <p class="text-[9px] text-slate-400">※Google Pickerによるクリック選択はAPIキーの設定が必要です。現在はURL自動抽出機能をデフォルトとしています。</p>
+              </div>`;
+        h += `<div class="mt-2 flex justify-end shrink-0"><button onclick="actions.executeExport()" class="m3-btn-primary px-8">サーバーで生成</button></div>`;
+        document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden');
+    },
+
+    cancelExport: () => {
+        if(exportAbortController) {
+            exportAbortController.abort();
+            exportAbortController = null;
+        }
+        document.getElementById('export-overlay').classList.replace('flex', 'hidden');
+        showToast("出力をキャンセルしました", "info");
+    },
+    
+    executeExport: async function() {
+        let folderUrl = document.getElementById('export-folder-url')?.value || '';
+        let folderId = null;
+        if (folderUrl) {
+            const match = folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/) || folderUrl.match(/id=([a-zA-Z0-9-_]+)/);
+            if (match) {
+                folderId = match[1];
+            } else {
+                folderId = folderUrl.trim();
+            }
+        }
+
+        const options = {
+            folderId: folderId,
+            pdf: {
+                matrixClass: document.getElementById('pdf-matrix-class')?.checked,
+                matrixTeacher: document.getElementById('pdf-matrix-teacher')?.checked,
+                matrixRoom: document.getElementById('pdf-matrix-room')?.checked,
+                individualClass: document.getElementById('pdf-indiv-class')?.checked,
+                individualTeacher: document.getElementById('pdf-indiv-teacher')?.checked
+            },
+            spreadsheet: {
+                matrixClass: document.getElementById('ss-matrix-class')?.checked,
+                matrixTeacher: document.getElementById('ss-matrix-teacher')?.checked,
+                matrixRoom: document.getElementById('ss-matrix-room')?.checked,
+                individualClass: document.getElementById('ss-indiv-class')?.checked,
+                individualTeacher: document.getElementById('ss-indiv-teacher')?.checked
+            }
+        };
+
+        actions.closeModal();
+        document.getElementById('export-overlay').classList.replace('hidden', 'flex');
+        
+        exportAbortController = new AbortController();
+
+        try {
+            const res = await fetch(GAS_URL, { 
+                method: 'POST', 
+                mode: 'cors', 
+                signal: exportAbortController.signal,
+                body: JSON.stringify({ 
+                    action: 'export', 
+                    state: actions.preparePayload(), 
+                    schedule: state.generatedSchedule,
+                    options: options
+                }) 
+            });
+            const data = await res.json();
+            document.getElementById('export-overlay').classList.replace('flex', 'hidden');
+            exportAbortController = null;
+            
+            if (data.success && data.urls) {
+                let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">🎉 生成完了</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div class="flex-1 flex flex-col gap-4 pb-4">`;
+                h += `<p class="text-sm font-bold text-slate-700">ファイルが正常に生成されました。以下のリンクからアクセスしてください。</p>`;
+                h += `<div class="flex flex-col gap-3">`;
+                if (data.urls.spreadsheetUrl) {
+                    h += `<a href="${data.urls.spreadsheetUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-emerald-700 font-black transition-colors text-base">📊 スプレッドシートを開く</a>`;
+                }
+                if (data.urls.pdfUrl) {
+                    h += `<a href="${data.urls.pdfUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-rose-700 font-black transition-colors text-base">📄 PDFを開く (ダウンロード)</a>`;
+                }
+                h += `</div></div>`;
+                document.getElementById('modal-body').innerHTML = h;
+                document.getElementById('modal-overlay').classList.remove('hidden');
+            } else {
+                showToast("ファイルの生成に失敗しました: " + (data.message || ""), "error");
+            }
+        } catch (e) {
+            if(e.name === 'AbortError') {
+            } else {
+                document.getElementById('export-overlay').classList.replace('flex', 'hidden');
+                exportAbortController = null;
+                showToast("通信エラーが発生しました", "error");
+            }
+        }
+    },
+
+    openImportSSModal: () => {
+        document.getElementById('import-ss-url').value = '';
+        document.getElementById('import-ss-errors').classList.add('hidden');
+        document.getElementById('import-ss-modal-overlay').classList.remove('hidden');
+    },
+    closeImportSSModal: () => {
+        document.getElementById('import-ss-modal-overlay').classList.add('hidden');
+    },
+    executeImportSS: async () => {
+        const url = document.getElementById('import-ss-url').value;
+        if (!url) { showToast("URLを入力してください", "error"); return; }
+        
+        const btn = document.getElementById('btn-exec-import-ss');
+        btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> 読込中...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(GAS_URL, {
+                method: 'POST',
+                mode: 'cors',
+                body: JSON.stringify({ action: 'importFromSS', spreadsheetUrl: url, state: actions.preparePayload() })
+            });
+            const data = await res.json();
+            
+            btn.innerHTML = '読み込む';
+            btn.disabled = false;
+
+            if (data.success) {
+                state.generatedSchedule = data.schedule;
+                state.unassigned = [];
+                state.currentStep = 10;
+                actions.initScheduleHistory();
+                
+                if (data.errors && data.errors.length > 0) {
+                    const errBox = document.getElementById('import-ss-errors');
+                    errBox.innerHTML = '<b>一部の読み込みでエラーが発生しました：</b><br>' + data.errors.join('<br>');
+                    errBox.classList.remove('hidden');
+                    showToast(`一部エラーあり: ${data.importCount}件読み込みました`, "warning");
+                } else {
+                    actions.closeImportSSModal();
+                    showToast(data.message, "success");
+                }
+                render();
+            } else {
+                showToast(data.message, "error");
+            }
+        } catch (e) {
+            btn.innerHTML = '読み込む';
+            btn.disabled = false;
+            showToast("通信エラーが発生しました", "error");
+        }
+    }
+};
+
+window.showViolationPopup = function(lessonId) {
+    if(!state.violations || !state.violations[lessonId]) return;
+    const msgs = state.violations[lessonId];
+    const el = document.getElementById('violation-popup');
+    el.innerHTML = `<div class="font-black text-rose-500 text-xs mb-1 flex items-center gap-1">⚠️ ルール違反を検知</div><ul class="text-[10px] font-bold list-disc pl-4 space-y-1 leading-snug">${msgs.map(m=>`<li>${m}</li>`).join('')}</ul>`;
+    el.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+    state.activeViolationNode = lessonId;
+};
+window.hideViolationPopup = function() {
+    const el = document.getElementById('violation-popup');
+    el.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+    state.activeViolationNode = null;
+};
+document.addEventListener('click', (e) => {
+    if(state.activeViolationNode && !e.target.closest('#violation-popup')) {
+        setTimeout(window.hideViolationPopup, 50);
+    }
+});
+
+document.addEventListener('DOMContentLoaded',load);
+</script>
