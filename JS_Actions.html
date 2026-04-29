@@ -35,53 +35,115 @@ window.actions = {
         }
     },
 
-    openSlotModal: () => {
+    // ===== 保存/ロードのUI改善 (スマート化) =====
+    openSlotModal: (mode = 'save') => {
         const container = document.getElementById('slot-list-container');
+        const titleEl = document.getElementById('slot-modal-title');
+        
+        if (mode === 'save') {
+            titleEl.innerHTML = '💾 保存先スロットを選択';
+            titleEl.className = 'text-lg font-black text-blue-700 dark:text-blue-400 flex items-center gap-2';
+        } else {
+            titleEl.innerHTML = '📂 ロードするスロットを選択';
+            titleEl.className = 'text-lg font-black text-indigo-700 dark:text-indigo-400 flex items-center gap-2';
+        }
+
         container.innerHTML = slotsData.map((slot, i) => {
             if (!slot) {
-                return `<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
-                    <span class="text-xs font-bold text-slate-400">スロット ${i+1}: 空き</span>
-                    <button onclick="actions.saveToSlot(${i})" class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-black shadow-sm transition-colors">ここに保存</button>
+                if (mode === 'save') {
+                    return `<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                        <span class="text-xs font-bold text-slate-400">スロット ${i+1} : (空き)</span>
+                        <button onclick="actions.confirmSaveSlot(${i})" class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-black shadow-sm transition-colors">新規保存</button>
+                    </div>`;
+                } else {
+                    return `<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 opacity-50">
+                        <span class="text-xs font-bold text-slate-400">スロット ${i+1} : (空き)</span>
+                        <span class="text-[10px] text-slate-400 font-bold px-2">データなし</span>
+                    </div>`;
+                }
+            }
+            
+            if (mode === 'save') {
+                return `<div class="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-blue-200 dark:border-slate-700 shadow-sm transition-colors hover:border-blue-300">
+                    <div class="flex flex-col gap-1 overflow-hidden pr-2">
+                        <span class="text-[10px] font-black text-blue-500">スロット ${i+1}</span>
+                        <span class="text-sm font-black text-slate-800 dark:text-slate-100 truncate">${slot.name}</span>
+                        <span class="text-[9px] text-slate-400 font-bold">${slot.date}</span>
+                    </div>
+                    <button onclick="actions.confirmSaveSlot(${i})" class="text-[10px] bg-white border border-slate-300 text-slate-700 hover:text-blue-700 hover:border-blue-400 px-4 py-2 rounded-lg font-black shadow-sm transition-colors shrink-0">上書き保存</button>
+                </div>`;
+            } else {
+                return `<div class="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-indigo-200 dark:border-slate-700 shadow-sm transition-colors hover:border-indigo-300">
+                    <div class="flex flex-col gap-1 overflow-hidden pr-2">
+                        <span class="text-[10px] font-black text-indigo-500">スロット ${i+1}</span>
+                        <span class="text-sm font-black text-slate-800 dark:text-slate-100 truncate">${slot.name}</span>
+                        <span class="text-[9px] text-slate-400 font-bold">${slot.date}</span>
+                    </div>
+                    <button onclick="actions.confirmLoadSlot(${i})" class="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-lg font-black shadow-sm transition-colors shrink-0">ロードする</button>
                 </div>`;
             }
-            return `<div class="p-3 bg-white dark:bg-slate-800 rounded-xl border border-blue-100 dark:border-slate-700 shadow-sm space-y-2">
-                <div class="flex justify-between items-start">
-                    <input type="text" value="${slot.name}" onblur="actions.renameSlot(${i}, this.value)" class="bg-transparent font-black text-sm text-blue-900 dark:text-blue-300 outline-none focus:border-b border-blue-400 flex-1">
-                    <span class="text-[9px] text-slate-400 font-bold ml-2 shrink-0">${slot.date}</span>
-                </div>
-                <div class="flex justify-end gap-2">
-                    <button onclick="actions.saveToSlot(${i})" class="text-[9px] font-black text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 border border-transparent hover:border-blue-200 dark:hover:border-blue-800 px-2 py-1 rounded transition-colors">上書き保存</button>
-                    <button onclick="actions.loadFromSlot(${i})" class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-4 py-1.5 rounded-lg font-black border border-blue-200 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">ロードする</button>
-                </div>
-            </div>`;
         }).join('');
         document.getElementById('slot-modal-overlay').classList.remove('hidden');
     },
     closeSlotModal: () => { document.getElementById('slot-modal-overlay').classList.add('hidden'); },
-    renameSlot: (i, newName) => {
-        if(slotsData[i]) {
-            slotsData[i].name = newName;
-            localStorage.setItem(STORAGE_KEY_SLOTS, JSON.stringify(slotsData));
-        }
-    },
-    saveToSlot: (i) => {
+    
+    confirmSaveSlot: (i) => {
+        actions.closeSlotModal(); 
         const unassigned = state.unassigned ? state.unassigned.length : '--';
+        const defaultName = `未配置${unassigned}個_${new Date().toLocaleDateString('ja-JP', {month:'2-digit', day:'2-digit'})}`;
+        const currentName = slotsData[i] ? slotsData[i].name : defaultName;
+        
+        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0">
+            <h3 class="text-lg font-black text-blue-900">💾 スロット${i+1}へ保存</h3>
+            <button onclick="actions.closeModal(); actions.openSlotModal('save')" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button>
+        </div>
+        <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col gap-3">
+            <p class="text-sm font-bold text-slate-700">現在の時間割をこのスロットに保存します。<br>${slotsData[i] ? '<span class="text-rose-500 text-xs">※以前のデータは上書きされます</span>' : ''}</p>
+            <div>
+                <label class="text-[10px] font-black text-slate-500 mb-1 block">保存名 (自由に編集できます)</label>
+                <input type="text" id="save-slot-name" value="${currentName}" class="w-full p-2 border border-slate-300 rounded font-black text-blue-900 outline-none focus:border-blue-500">
+            </div>
+        </div>
+        <div class="mt-4 flex justify-end gap-3 shrink-0">
+            <button onclick="actions.closeModal(); actions.openSlotModal('save')" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-bold hover:bg-slate-50 shadow-sm">戻る</button>
+            <button onclick="actions.closeModal(); actions.saveToSlot(${i})" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-sm">保存を実行</button>
+        </div>`;
+        document.getElementById('modal-body').innerHTML = h;
+        document.getElementById('modal-overlay').classList.remove('hidden');
+    },
+
+    saveToSlot: (i) => {
+        const nameInput = document.getElementById('save-slot-name');
         const date = new Date().toLocaleString('ja-JP', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+        const slotName = nameInput ? nameInput.value : `保存データ_${date}`;
+        
         const stateCopy = JSON.parse(JSON.stringify(state));
-        slotsData[i] = {
-            name: `未配置${unassigned}個_${date}`,
-            date: date,
-            data: stateCopy
-        };
+        slotsData[i] = { name: slotName, date: date, data: stateCopy };
         localStorage.setItem(STORAGE_KEY_SLOTS, JSON.stringify(slotsData));
-        actions.openSlotModal();
         showToast(`スロット ${i+1} に保存しました`, "success");
     },
+
+    confirmLoadSlot: (i) => {
+        actions.closeSlotModal();
+        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0">
+            <h3 class="text-lg font-black text-rose-700">⚠️ データのロード</h3>
+            <button onclick="actions.closeModal(); actions.openSlotModal('load')" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button>
+        </div>
+        <div class="p-4 text-sm font-bold text-rose-800 bg-rose-50 border border-rose-200 rounded-lg">
+            スロット ${i+1} 「${slotsData[i].name}」をロードします。<br><br>
+            現在の編集内容はすべて破棄されます。<br>本当によろしいですか？
+        </div>
+        <div class="mt-4 flex justify-end gap-3 shrink-0">
+            <button onclick="actions.closeModal(); actions.openSlotModal('load')" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-bold hover:bg-slate-50 shadow-sm">キャンセル</button>
+            <button onclick="actions.closeModal(); actions.loadFromSlot(${i});" class="px-6 py-2 bg-rose-600 text-white rounded-lg font-bold hover:bg-rose-700 shadow-sm">ロードを実行</button>
+        </div>`;
+        document.getElementById('modal-body').innerHTML = h;
+        document.getElementById('modal-overlay').classList.remove('hidden');
+    },
+
     loadFromSlot: (i) => {
-        if(!confirm("現在の編集内容が破棄されます。よろしいですか？")) return;
         const slotData = slotsData[i].data;
         Object.assign(state, JSON.parse(JSON.stringify(slotData)));
-        actions.closeSlotModal();
         try { localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(state)); } catch(e){}
         render();
         showToast("ロード完了しました", "success");
@@ -234,7 +296,6 @@ window.actions = {
         window.hideViolationPopup();
         if (!state.generatedSchedule) return;
         
-        // 駒を選択していない時：移動対象（またはグループ）を特定
         if (!state.movingLesson && lId) {
             const l = findLessonById(lId);
             if (l && l.isLocked) {
@@ -251,11 +312,9 @@ window.actions = {
             const fromD = fromL.day;
             const fromP = fromL.period;
 
-            // 1. 移動させる駒のグループ（合同授業すべて）を抽出
             let movingGroup = [];
             if (fromD && fromP) {
                 movingGroup = schedule[fromD][fromP].filter(l => l.id === fromL.id);
-                // 元の場所から削除
                 schedule[fromD][fromP] = schedule[fromD][fromP].filter(l => l.id !== fromL.id);
             } else {
                 const uIndex = state.unassigned.findIndex(x => x.id === fromL.id);
@@ -267,38 +326,22 @@ window.actions = {
 
             if (movingGroup.length === 0) { state.movingLesson = null; render(); return; }
 
-            // 2. 移動先（トレイまたは時間枠）への処理
             if (d === 'tray') {
                 state.unassigned.push(...movingGroup);
                 showToast("トレイに戻しました", "success");
             } else if (d && p) {
                 if (!schedule[d][p]) schedule[d][p] = [];
-                
-                // --- 【重要】一括入れ替えロジック ---
-                // 移動させる全クラスのリストを取得
                 const targetClasses = movingGroup.flatMap(m => m.targets);
-                
-                // 移動先の時間に「移動させるクラスのいずれか」が含まれる駒をすべて抽出（追い出す駒）
-                const bumpedGroup = schedule[d][p].filter(l => 
-                    l.targets.some(c => targetClasses.includes(c))
-                );
-                
-                // 移動先から追い出す駒を削除
-                schedule[d][p] = schedule[d][p].filter(l => 
-                    !l.targets.some(c => targetClasses.includes(c))
-                );
-                
-                // 移動先の時間に移動グループを追加
+                const bumpedGroup = schedule[d][p].filter(l => l.targets.some(c => targetClasses.includes(c)));
+                schedule[d][p] = schedule[d][p].filter(l => !l.targets.some(c => targetClasses.includes(c)));
                 schedule[d][p].push(...movingGroup);
 
-                // 追い出した駒を、移動元の場所（またはトレイ）へ飛ばす
                 if (fromD && fromP) {
                     if (!schedule[fromD][fromP]) schedule[fromD][fromP] = [];
                     schedule[fromD][fromP].push(...bumpedGroup);
                 } else {
                     state.unassigned.push(...bumpedGroup);
                 }
-                
                 showToast(bumpedGroup.length > 0 ? "合同授業を入れ替えました" : "駒を移動しました", "success");
             }
 
@@ -307,10 +350,8 @@ window.actions = {
             validateSchedule();
             render();
         } else {
-            // 最初のクリック（駒の選択）
             if (!lId) return;
             if(state.violations && state.violations[lId]) { setTimeout(() => window.showViolationPopup(lId), 10); }
-            
             if(d === 'tray') {
                 const target = safeFind(state.unassigned, 'id', lId);
                 state.movingLesson = { id: lId, day: null, period: null, targets: target?.targets||[], teacherIds: target?.teacherIds||[] };
@@ -323,15 +364,63 @@ window.actions = {
     },
 
     importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読み込み完了","success");};r.readAsText(f);};i.click();},
-    exportData: () => {
+
+    // ===== 端末保存のUI改善 (スマート化) =====
+    startExportData: () => {
+        const defaultFileName = `時間割データ_${new Date().toLocaleDateString('ja-JP').split('/').join('')}_未配置${state.unassigned?.length||0}.json`;
+        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0">
+            <h3 class="text-lg font-black text-emerald-700">💻 端末へ保存</h3>
+            <button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button>
+        </div>
+        <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex flex-col gap-3">
+            <p class="text-sm font-bold text-slate-700">現在の時間割と設定をPC端末にファイルとして保存します。</p>
+            <div>
+                <label class="text-[10px] font-black text-slate-500 mb-1 block">ファイル名 (自由に編集できます)</label>
+                <input type="text" id="export-file-name" value="${defaultFileName}" class="w-full p-2 border border-slate-300 rounded font-black text-emerald-900 outline-none focus:border-emerald-500">
+            </div>
+        </div>
+        <div class="mt-4 flex justify-end gap-3 shrink-0">
+            <button onclick="actions.closeModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-bold hover:bg-slate-50 shadow-sm">キャンセル</button>
+            <button onclick="actions.closeModal(); actions.exportData();" class="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 shadow-sm flex items-center gap-2">
+                <span>保存場所を選ぶ</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            </button>
+        </div>`;
+        document.getElementById('modal-body').innerHTML = h;
+        document.getElementById('modal-overlay').classList.remove('hidden');
+    },
+
+    exportData: async () => {
         try {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+            const dataStr = JSON.stringify(state);
+            const nameInput = document.getElementById('export-file-name');
+            const defaultFileName = nameInput ? nameInput.value : `時間割データ_${new Date().toLocaleDateString('ja-JP').split('/').join('')}.json`;
+            
+            if (window.showSaveFilePicker) {
+                try {
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName: defaultFileName,
+                        types: [{ description: 'JSON Files', accept: {'application/json': ['.json']} }]
+                    });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(dataStr);
+                    await writable.close();
+                    showToast("端末へ保存しました", "success");
+                    return; 
+                } catch (err) {
+                    if (err.name === 'AbortError') return; 
+                }
+            }
+            
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
             const dlAnchorElem = document.createElement('a');
-            dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", `時間割データ_${new Date().toLocaleDateString('ja-JP').replace(/\//g,'')}_未配置${state.unassigned?.length||0}.json`);
+            dlAnchorElem.setAttribute("href", url);
+            dlAnchorElem.setAttribute("download", defaultFileName);
             document.body.appendChild(dlAnchorElem);
             dlAnchorElem.click();
             dlAnchorElem.remove();
+            URL.revokeObjectURL(url);
             showToast("端末へ保存しました", "success");
         } catch(e) {
             showToast("保存に失敗しました", "error");
@@ -368,7 +457,7 @@ window.actions = {
                         s1s.forEach(s1 => s2s.forEach(s2 => { if(s1 !== s2) exR.push({subject1: s1, subject2: s2}); })); 
                     } else { 
                         const tgs = (r.targets?.length) ? r.targets : [undefined]; const excs = (r.excludes?.length) ? r.excludes : [undefined]; const subs = (r.subjects?.length) ? r.subjects : [undefined]; const dys = (r.days?.length) ? r.days : [undefined]; const pds = (r.periods?.length) ? r.periods : [undefined]; 
-                        tgs.forEach(tg => excs.forEach(ex => subs.forEach(su => dys.forEach(dy => pds.forEach(pd => { let nr = {}; if (tg) nr.grade = tg; if (ex) nr.exclude = ex; if (su) nr.subject = su; if (dy) nr.day = dy; if (pd) nr.period = parseInt(pd.toString().replace(/[^0-9]/g, ''), 10); exR.push(nr); }))))); 
+                        tgs.forEach(tg => excs.forEach(ex => subs.forEach(su => dys.forEach(dy => pds.forEach(pd => { let nr = {}; if (tg) nr.grade = tg; if (ex) nr.exclude = ex; if (su) nr.subject = su; if (dy) nr.day = dy; if (pd) nr.period = parseInt(pd.toString().replace(new RegExp('[^0-9]', 'g'), ''), 10); exR.push(nr); }))))); 
                     } 
                 }); 
                 pS.advancedRules[k] = exR; 
@@ -522,35 +611,22 @@ window.actions = {
               </div>`;
         h += `<div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200 mt-2">
                 <h4 class="text-xs font-black text-indigo-600 mb-2 border-b border-indigo-200 pb-1">📂 保存先フォルダの指定 (任意)</h4>
-                <p class="text-[10px] text-slate-500 mb-2">GoogleドライブのフォルダURL（またはフォルダID）を貼り付けると、その場所に保存されます。<br>空欄の場合は「マイドライブ」の直下に保存されます。</p>
+                <p class="text-[10px] text-slate-500 mb-2">GoogleドライブのフォルダURL（またはフォルダID）を貼り付けると、その場所に保存されます。</p>
                 <input type="text" id="export-folder-url" placeholder="https://drive.google.com/drive/folders/..." class="w-full p-2 border rounded-lg bg-white text-xs font-bold outline-none focus:border-indigo-500 mb-1">
-                <p class="text-[9px] text-slate-400">※Google Pickerによるクリック選択はAPIキーの設定が必要です。現在はURL自動抽出機能をデフォルトとしています。</p>
               </div>`;
         h += `<div class="mt-2 flex justify-end shrink-0"><button onclick="actions.executeExport()" class="m3-btn-primary px-8">サーバーで生成</button></div>`;
         document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden');
     },
 
-    cancelExport: () => {
-        if(exportAbortController) {
-            exportAbortController.abort();
-            exportAbortController = null;
-        }
-        document.getElementById('export-overlay').classList.replace('flex', 'hidden');
-        showToast("出力をキャンセルしました", "info");
-    },
-    
     executeExport: async function() {
         let folderUrl = document.getElementById('export-folder-url')?.value || '';
         let folderId = null;
         if (folderUrl) {
-            const match = folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/) || folderUrl.match(/id=([a-zA-Z0-9-_]+)/);
-            if (match) {
-                folderId = match[1];
-            } else {
-                folderId = folderUrl.trim();
-            }
+            const regex1 = new RegExp('/folders/([a-zA-Z0-9-_]+)');
+            const regex2 = new RegExp('id=([a-zA-Z0-9-_]+)');
+            const match = folderUrl.match(regex1) || folderUrl.match(regex2);
+            folderId = match ? match[1] : folderUrl.trim();
         }
-
         const options = {
             folderId: folderId,
             pdf: {
@@ -568,51 +644,25 @@ window.actions = {
                 individualTeacher: document.getElementById('ss-indiv-teacher')?.checked
             }
         };
-
         actions.closeModal();
         document.getElementById('export-overlay').classList.replace('hidden', 'flex');
-        
         exportAbortController = new AbortController();
-
         try {
-            const res = await fetch(GAS_URL, { 
-                method: 'POST', 
-                mode: 'cors', 
-                signal: exportAbortController.signal,
-                body: JSON.stringify({ 
-                    action: 'export', 
-                    state: actions.preparePayload(), 
-                    schedule: state.generatedSchedule,
-                    options: options
-                }) 
-            });
+            const res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', signal: exportAbortController.signal, body: JSON.stringify({ action: 'export', state: actions.preparePayload(), schedule: state.generatedSchedule, options: options }) });
             const data = await res.json();
             document.getElementById('export-overlay').classList.replace('flex', 'hidden');
-            exportAbortController = null;
-            
             if (data.success && data.urls) {
                 let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">🎉 生成完了</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div class="flex-1 flex flex-col gap-4 pb-4">`;
-                h += `<p class="text-sm font-bold text-slate-700">ファイルが正常に生成されました。以下のリンクからアクセスしてください。</p>`;
-                h += `<div class="flex flex-col gap-3">`;
-                if (data.urls.spreadsheetUrl) {
-                    h += `<a href="${data.urls.spreadsheetUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-emerald-700 font-black transition-colors text-base">📊 スプレッドシートを開く</a>`;
-                }
-                if (data.urls.pdfUrl) {
-                    h += `<a href="${data.urls.pdfUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-rose-700 font-black transition-colors text-base">📄 PDFを開く (ダウンロード)</a>`;
-                }
+                h += `<p class="text-sm font-bold text-slate-700">ファイルが正常に生成されました。</p><div class="flex flex-col gap-3">`;
+                if (data.urls.spreadsheetUrl) h += `<a href="${data.urls.spreadsheetUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-emerald-700 font-black transition-colors text-base">📊 スプレッドシートを開く</a>`;
+                if (data.urls.pdfUrl) h += `<a href="${data.urls.pdfUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-rose-700 font-black transition-colors text-base">📄 PDFを開く</a>`;
                 h += `</div></div>`;
                 document.getElementById('modal-body').innerHTML = h;
                 document.getElementById('modal-overlay').classList.remove('hidden');
-            } else {
-                showToast("ファイルの生成に失敗しました: " + (data.message || ""), "error");
-            }
+            } else showToast("ファイルの生成に失敗しました", "error");
         } catch (e) {
-            if(e.name === 'AbortError') {
-            } else {
-                document.getElementById('export-overlay').classList.replace('flex', 'hidden');
-                exportAbortController = null;
-                showToast("通信エラーが発生しました", "error");
-            }
+            document.getElementById('export-overlay').classList.replace('flex', 'hidden');
+            if(e.name !== 'AbortError') showToast("通信エラーが発生しました", "error");
         }
     },
 
@@ -621,54 +671,38 @@ window.actions = {
         document.getElementById('import-ss-errors').classList.add('hidden');
         document.getElementById('import-ss-modal-overlay').classList.remove('hidden');
     },
-    closeImportSSModal: () => {
-        document.getElementById('import-ss-modal-overlay').classList.add('hidden');
-    },
+    closeImportSSModal: () => { document.getElementById('import-ss-modal-overlay').classList.add('hidden'); },
     executeImportSS: async () => {
         const url = document.getElementById('import-ss-url').value;
         if (!url) { showToast("URLを入力してください", "error"); return; }
-        
         const btn = document.getElementById('btn-exec-import-ss');
         btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> 読込中...';
         btn.disabled = true;
-
         try {
-            const res = await fetch(GAS_URL, {
-                method: 'POST',
-                mode: 'cors',
-                body: JSON.stringify({ action: 'importFromSS', spreadsheetUrl: url, state: actions.preparePayload() })
-            });
+            const res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'importFromSS', spreadsheetUrl: url, state: actions.preparePayload() }) });
             const data = await res.json();
-            
-            btn.innerHTML = '読み込む';
-            btn.disabled = false;
-
+            btn.innerHTML = '読み込む'; btn.disabled = false;
             if (data.success) {
-                state.generatedSchedule = data.schedule;
-                state.unassigned = [];
-                state.currentStep = 10;
-                actions.initScheduleHistory();
-                
+                state.generatedSchedule = data.schedule; state.unassigned = []; state.currentStep = 10; actions.initScheduleHistory();
                 if (data.errors && data.errors.length > 0) {
                     const errBox = document.getElementById('import-ss-errors');
                     errBox.innerHTML = '<b>一部の読み込みでエラーが発生しました：</b><br>' + data.errors.join('<br>');
-                    errBox.classList.remove('hidden');
-                    showToast(`一部エラーあり: ${data.importCount}件読み込みました`, "warning");
-                } else {
-                    actions.closeImportSSModal();
-                    showToast(data.message, "success");
-                }
+                    errBox.classList.remove('hidden'); showToast(`一部エラーあり: ${data.importCount}件読み込みました`, "warning");
+                } else { actions.closeImportSSModal(); showToast(data.message, "success"); }
                 render();
-            } else {
-                showToast(data.message, "error");
-            }
-        } catch (e) {
-            btn.innerHTML = '読み込む';
-            btn.disabled = false;
-            showToast("通信エラーが発生しました", "error");
-        }
+            } else showToast(data.message, "error");
+        } catch (e) { btn.innerHTML = '読み込む'; btn.disabled = false; showToast("通信エラーが発生しました", "error"); }
     }
 };
+
+// マウスの押しっぱなし状態を監視するリスナー（なぞり固定機能用）
+function setupPaintListeners() {
+  document.addEventListener('mousedown', () => { isPainting = true; });
+  document.addEventListener('mouseup', () => { 
+    isPainting = false; 
+    paintTargetLock = true; // 離したときにロック状態をリセット
+  });
+}
 
 window.showViolationPopup = function(lessonId) {
     if(!state.violations || !state.violations[lessonId]) return;
@@ -689,13 +723,8 @@ document.addEventListener('click', (e) => {
     }
 });
 
-document.addEventListener('DOMContentLoaded',load);
-// マウスの押しっぱなし状態を監視するリスナー（なぞり固定機能用）
-function setupPaintListeners() {
-  document.addEventListener('mousedown', () => { isPainting = true; });
-  document.addEventListener('mouseup', () => { 
-    isPainting = false; 
-    paintTargetLock = true; // 離したときにロック状態をリセット
-  });
-}
+// エラー回避のため、load関数が定義されている場合のみ実行する
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof load === 'function') load();
+});
 </script>

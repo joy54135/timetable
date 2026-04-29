@@ -1,113 +1,140 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.4.0</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-<script>tailwind.config={darkMode:'class'}</script>
-<script>
-    if(localStorage.getItem('tt_theme')==='dark'||(!('tt_theme' in localStorage)&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}else{document.documentElement.classList.remove('dark');}
-</script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
-<!-- スタイルシートの読み込み -->
-<?!= include('Stylesheet'); ?>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart TimeTable - Ver 17.4.1</title>
+    
+    <!-- 外部ライブラリ -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>tailwind.config={darkMode:'class'}</script>
+    
+    <!-- ダークモード判定 -->
+    <script>
+        if(localStorage.getItem('tt_theme')==='dark'||(!('tt_theme' in localStorage)&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}else{document.documentElement.classList.remove('dark');}
+    </script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- 部品: CSS -->
+    <?!= include('Stylesheet'); ?>
 </head>
 <body>
-<div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm flex items-center gap-2 z-[9999] transition-all opacity-0 pointer-events-none"><span id="toast-msg"></span></div>
-<div id="violation-popup" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl z-[9999] transition-all duration-300 pointer-events-none opacity-0 scale-95 border border-rose-500/50 w-[90%] max-w-md"></div>
-
-<div id="celebration-overlay" class="fixed inset-0 z-[300] hidden items-center justify-center cursor-pointer bg-white/30 dark:bg-black/30 backdrop-blur-sm transition-opacity duration-500 opacity-0" title="クリックでスキップ">
-    <div class="text-6xl md:text-[10rem] font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-300 via-pink-500 to-indigo-500 drop-shadow-[0_15px_20px_rgba(0,0,0,0.4)] transform scale-50 opacity-0 transition-all duration-700 ease-out tracking-tighter" id="celebration-text" style="-webkit-text-stroke: 4px white;">
-        PERFECT!!
+    <!-- トースト通知 -->
+    <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm flex items-center gap-2 z-[9999] transition-all opacity-0 pointer-events-none">
+        <span id="toast-msg"></span>
     </div>
-</div>
 
-<div id="app-container">
-    <div class="m3-card flex-1 flex flex-col min-h-0 relative">
-        <div class="flex items-center justify-between mb-2 shrink-0 border-b border-slate-100 dark:border-slate-800 pb-2 flex-wrap gap-2">
-            <div class="flex items-center gap-3">
-                <h2 id="step-title" class="text-sm md:text-base font-black text-slate-800 dark:text-slate-100 whitespace-nowrap tracking-tight"></h2>
-                <div id="progress-dots" class="flex gap-1 hidden md:flex"></div>
+    <!-- ルール違反ポップアップ -->
+    <div id="violation-popup" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl z-[9999] transition-all duration-300 pointer-events-none opacity-0 scale-95 border border-rose-500/50 w-[90%] max-w-md"></div>
+
+    <!-- お祝い演出 -->
+    <div id="celebration-overlay" class="fixed inset-0 z-[300] hidden items-center justify-center cursor-pointer bg-white/30 dark:bg-black/30 backdrop-blur-sm transition-opacity duration-500 opacity-0">
+        <div class="text-6xl md:text-[10rem] font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-300 via-pink-500 to-indigo-500 drop-shadow-[0_15px_20px_rgba(0,0,0,0.4)] transform scale-50 opacity-0 transition-all duration-700 ease-out tracking-tighter" id="celebration-text" style="-webkit-text-stroke: 4px white;">
+            PERFECT!!
+        </div>
+    </div>
+
+    <!-- メインコンテナ -->
+    <div id="app-container">
+        <div class="m3-card flex-1 flex flex-col min-h-0 relative">
+            <!-- ヘッダーエリア -->
+            <div class="flex items-center justify-between mb-2 shrink-0 border-b border-slate-100 dark:border-slate-800 pb-2 flex-wrap gap-2">
+                <div class="flex items-center gap-3">
+                    <h2 id="step-title" class="text-sm md:text-base font-black text-slate-800 dark:text-slate-100 whitespace-nowrap tracking-tight"></h2>
+                    <div id="progress-dots" class="flex gap-1 hidden md:flex"></div>
+                </div>
+                <!-- ここにJS_Viewsからボタンが流し込まれる -->
+                <div id="step-header-utils" class="flex items-center gap-1.5 flex-wrap justify-end"></div>
             </div>
-            <div id="step-header-utils" class="flex items-center gap-1.5 flex-wrap justify-end"></div>
-        </div>
-        
-        <div id="step-content" class="fade-in flex-1 overflow-y-auto custom-scrollbar flex flex-col relative min-h-0 pr-1"></div>
+            
+            <!-- 各ステップのコンテンツ表示エリア -->
+            <div id="step-content" class="fade-in flex-1 overflow-y-auto custom-scrollbar flex flex-col relative min-h-0 pr-1"></div>
 
-        <div class="relative flex justify-between items-center mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 shrink-0" id="bottom-navigation">
-            <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
-            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
-                <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.4.0 (Modularized Architecture)</div>
+            <!-- 下部ナビゲーション -->
+            <div class="relative flex justify-between items-center mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 shrink-0" id="bottom-navigation">
+                <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
+                    <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
+                    <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.4.1 (UX Optimized)</div>
+                </div>
+                <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
             </div>
-            <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
         </div>
     </div>
-</div>
 
-<div id="modal-overlay" class="fixed inset-0 z-[150] flex items-center justify-center hidden p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all"><div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-2xl w-full shadow-2xl flex flex-col overflow-hidden max-h-[90vh]" id="modal-body"></div></div>
-
-<!-- 設定セーブスロット用モーダル -->
-<div id="slot-modal-overlay" class="fixed inset-0 z-[250] flex items-center justify-center hidden bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all">
-    <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
-        <div class="flex justify-between items-center mb-4 border-b pb-2 dark:border-slate-800">
-            <h3 class="text-lg font-black text-blue-700 dark:text-blue-400 flex items-center gap-2">💾 設定セーブスロット</h3>
-            <button onclick="actions.closeSlotModal()" class="text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full p-1 font-bold">✕</button>
-        </div>
-        <div id="slot-list-container" class="space-y-2 overflow-y-auto custom-scrollbar pr-2 flex-1"></div>
+    <!-- 汎用モーダル (確認ダイアログ等に使用) -->
+    <div id="modal-overlay" class="fixed inset-0 z-[150] flex items-center justify-center hidden p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-2xl w-full shadow-2xl flex flex-col overflow-hidden max-h-[90vh]" id="modal-body"></div>
     </div>
-</div>
 
-<!-- SS同期用モーダル -->
-<div id="import-ss-modal-overlay" class="fixed inset-0 z-[250] flex items-center justify-center hidden bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all">
-    <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col overflow-hidden">
-        <div class="flex justify-between items-center mb-4 border-b pb-2 dark:border-slate-800">
-            <h3 class="text-lg font-black text-emerald-700 dark:text-emerald-400 flex items-center gap-2">🔗 スプレッドシートから同期</h3>
-            <button onclick="actions.closeImportSSModal()" class="text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full p-1 font-bold">✕</button>
-        </div>
-        <div class="space-y-4">
-            <p class="text-xs font-bold text-slate-500 dark:text-slate-400">エクスポートしたスプレッドシートのURLを入力してください。<br>「全体(クラス)」シートの内容を読み込みます。</p>
-            <input type="text" id="import-ss-url" placeholder="https://docs.google.com/spreadsheets/d/..." class="w-full p-2 border rounded-lg bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white text-sm font-bold outline-none focus:border-emerald-500">
-            <div id="import-ss-errors" class="hidden max-h-32 overflow-y-auto text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-900/30 p-2 rounded border border-rose-200 dark:border-rose-800/50"></div>
-        </div>
-        <div class="mt-6 flex justify-end gap-2">
-            <button onclick="actions.closeImportSSModal()" class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">キャンセル</button>
-            <button onclick="actions.executeImportSS()" id="btn-exec-import-ss" class="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-sm hover:bg-emerald-700 shadow-md transition-colors flex items-center justify-center gap-2 min-w-[120px]">読み込む</button>
+    <!-- セーブ/ロード兼用 スロット選択モーダル -->
+    <div id="slot-modal-overlay" class="fixed inset-0 z-[250] flex items-center justify-center hidden bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div class="flex justify-between items-center mb-4 border-b pb-2 dark:border-slate-800">
+                <!-- Javascriptでタイトル（保存かロードか）を書き換えます -->
+                <h3 id="slot-modal-title" class="text-lg font-black text-blue-700 dark:text-blue-400 flex items-center gap-2">スロット選択</h3>
+                <button onclick="actions.closeSlotModal()" class="text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full p-1 font-bold">✕</button>
+            </div>
+            <div id="slot-list-container" class="space-y-2 overflow-y-auto custom-scrollbar pr-2 flex-1"></div>
         </div>
     </div>
-</div>
 
-<!-- AIチャレンジ用オーバーレイ -->
-<div id="loading-overlay" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[200] hidden items-center justify-center flex-col gap-4 transition-all text-white">
-    <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2 shadow-lg"></div>
-    <div class="text-center">
-        <h3 class="text-xl font-black tracking-widest mb-1" id="loading-title">AI思考中...</h3>
-        <div id="loading-timer" class="text-7xl font-black text-emerald-400 font-mono tracking-widest mb-1 drop-shadow-md">0.0s</div>
-        <p class="text-indigo-200 font-bold text-sm" id="loading-desc">しばらくお待ちください</p>
-        <div id="loading-best-container" class="hidden mt-4 items-center justify-center gap-4 text-xs font-bold text-slate-300">
-            <div class="bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">歴代ベスト: <span id="loading-best-record" class="text-emerald-400 font-black text-sm">--</span> 駒</div>
-            <div class="bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">今回: <span id="loading-latest-record" class="text-amber-400 font-black text-sm">--</span> 駒</div>
+    <!-- SS同期用モーダル -->
+    <div id="import-ss-modal-overlay" class="fixed inset-0 z-[250] flex items-center justify-center hidden bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-4 border-b pb-2 dark:border-slate-800">
+                <h3 class="text-lg font-black text-emerald-700 dark:text-emerald-400 flex items-center gap-2">🔗 スプレッドシートから同期</h3>
+                <button onclick="actions.closeImportSSModal()" class="text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full p-1 font-bold">✕</button>
+            </div>
+            <div class="space-y-4">
+                <p class="text-xs font-bold text-slate-500 dark:text-slate-400">エクスポートしたスプレッドシートのURLを入力してください。</p>
+                <input type="text" id="import-ss-url" placeholder="https://docs.google.com/spreadsheets/d/..." class="w-full p-2 border rounded-lg bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white text-sm font-bold outline-none focus:border-emerald-500">
+                <div id="import-ss-errors" class="hidden max-h-32 overflow-y-auto text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-900/30 p-2 rounded border border-rose-200 dark:border-rose-800/50"></div>
+            </div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button onclick="actions.closeImportSSModal()" class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">キャンセル</button>
+                <button onclick="actions.executeImportSS()" id="btn-exec-import-ss" class="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-sm hover:bg-emerald-700 shadow-md transition-colors flex items-center justify-center gap-2 min-w-[120px]">読み込む</button>
+            </div>
         </div>
     </div>
-    <button id="btn-cancel-gen" onclick="actions.cancelGeneration()" class="mt-6 px-8 py-3 bg-slate-800 text-slate-300 border border-slate-600 rounded-full text-sm font-bold hover:bg-rose-900 transition-colors hidden">チャレンジを中断・結果を見る</button>
-</div>
 
-<!-- エクスポート（PDF/SS）専用オーバーレイ -->
-<div id="export-overlay" class="fixed inset-0 bg-emerald-900/95 backdrop-blur-md z-[300] hidden items-center justify-center flex-col gap-4 text-white">
-    <div class="relative">
-        <div class="w-20 h-20 border-4 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
-        <div class="absolute inset-0 flex items-center justify-center font-black text-xs text-emerald-100">PDF/SS</div>
+    <!-- AIチャレンジ用オーバーレイ -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[200] hidden items-center justify-center flex-col gap-4 transition-all text-white">
+        <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2 shadow-lg"></div>
+        <div class="text-center">
+            <h3 class="text-xl font-black tracking-widest mb-1" id="loading-title">AI思考中...</h3>
+            <div id="loading-timer" class="text-7xl font-black text-emerald-400 font-mono tracking-widest mb-1 drop-shadow-md">0.0s</div>
+            <p class="text-indigo-200 font-bold text-sm" id="loading-desc">しばらくお待ちください</p>
+            <div id="loading-best-container" class="hidden mt-4 items-center justify-center gap-4 text-xs font-bold text-slate-300">
+                <div class="bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">歴代ベスト: <span id="loading-best-record" class="text-emerald-400 font-black text-sm">--</span> 駒</div>
+                <div class="bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">今回: <span id="loading-latest-record" class="text-amber-400 font-black text-sm">--</span> 駒</div>
+            </div>
+        </div>
+        <button id="btn-cancel-gen" onclick="actions.cancelGeneration()" class="mt-6 px-8 py-3 bg-slate-800 text-slate-300 border border-slate-600 rounded-full text-sm font-bold hover:bg-rose-900 transition-colors hidden">中断して結果を見る</button>
     </div>
-    <div class="text-center">
-        <h3 class="text-xl font-black tracking-widest mb-1 text-white">ドキュメント生成中</h3>
-        <p class="text-emerald-200 font-bold text-sm">サーバーでファイルを構築しています...</p>
-    </div>
-    <button onclick="actions.cancelExport()" class="mt-8 px-8 py-3 bg-white/10 hover:bg-rose-600 border border-white/20 rounded-full text-sm font-bold transition-all shadow-lg">生成を中止して戻る</button>
-</div>
 
-<!-- JavaScript部品の読み込み -->
-<?!= include('JS_State'); ?>
-<?!= include('JS_Views'); ?>
-<?!= include('JS_Actions'); ?>
+    <!-- エクスポート専用オーバーレイ -->
+    <div id="export-overlay" class="fixed inset-0 bg-emerald-900/95 backdrop-blur-md z-[300] hidden items-center justify-center flex-col gap-4 text-white">
+        <div class="relative">
+            <div class="w-20 h-20 border-4 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
+            <div class="absolute inset-0 flex items-center justify-center font-black text-xs text-emerald-100">PDF/SS</div>
+        </div>
+        <div class="text-center">
+            <h3 class="text-xl font-black tracking-widest mb-1 text-white">ドキュメント生成中</h3>
+            <p class="text-emerald-200 font-bold text-sm">サーバーでファイルを構築しています...</p>
+        </div>
+        <button onclick="actions.cancelExport()" class="mt-8 px-8 py-3 bg-white/10 hover:bg-rose-600 border border-white/20 rounded-full text-sm font-bold transition-all shadow-lg">生成を中止</button>
+    </div>
+
+    <!-- 重要: 部品の読み込み順序 -->
+    <!-- 1. 状態管理(state) -->
+    <?!= include('JS_State'); ?>
+    <!-- 2. 描画(views) -->
+    <?!= include('JS_Views'); ?>
+    <!-- 3. ロジック(actions) -->
+    <?!= include('JS_Actions'); ?>
+
 </body>
 </html>
