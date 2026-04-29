@@ -677,4 +677,12 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded',load);
+// マウスの押しっぱなし状態を監視するリスナー（なぞり固定機能用）
+function setupPaintListeners() {
+  document.addEventListener('mousedown', () => { isPainting = true; });
+  document.addEventListener('mouseup', () => { 
+    isPainting = false; 
+    paintTargetLock = true; // 離したときにロック状態をリセット
+  });
+}
 </script>
