@@ -10,6 +10,7 @@ html,body{@apply h-full h-[100dvh] overflow-hidden m-0 p-0 font-sans bg-slate-50
 .step-dot{@apply h-1.5 w-1.5 rounded-full transition-all duration-300 bg-slate-200 dark:bg-slate-700;} .step-dot.active{@apply bg-blue-600 dark:bg-blue-500 w-6;}
 .fade-in{animation:fadeIn 0.15s ease-out forwards;} @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
 .bg-banned{background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(0,0,0,0.06) 4px,rgba(0,0,0,0.06) 8px); @apply bg-slate-200 dark:bg-slate-800 cursor-not-allowed;}
+.dark .bg-banned{background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,0.08) 4px,rgba(255,255,255,0.08) 8px);}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
 .slot-safe { @apply bg-emerald-50/50 dark:bg-emerald-900/30 ring-2 ring-emerald-400/50 ring-inset; }
 .slot-warning { @apply bg-amber-50/50 dark:bg-amber-900/30 ring-2 ring-amber-400/50 ring-inset; }
