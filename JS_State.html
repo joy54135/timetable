@@ -15,7 +15,8 @@ const step8Packages=[
   {id:"pkg3", title:"【児童配慮設定】", desc:"集中度に合わせた教科配置", items:[{key:"amPrioritySubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"午前に優先配置", desc:"", tip:""},{key:"lastPeriodSubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"最終コマに優先配置", desc:"", tip:""},{key:"avoidSpecificTimes", type:"array", fields:['target','exclude','subject','day','period'], format:"", title:"特定の時間帯回避", desc:"", tip:""}]}
 ];
 
-var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon:{active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best:{unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, editingTeacherId:null, editingSubjectId:null, editingTeacherLimitId:null, specialBuilder:{type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, openSpecialEdits:{}, subjectsUndoStack:[], rulesUndoStack:[], birdEyeMode:false, spotlightSub:'', spotlightTea:'', spotlightTeas:['','','',''], movingLesson:null, violations:{}, conflictingIds:[], activeViolationNode:null, scheduleHistory:[], historyIndex:-1, openTeacherLoadId:null, paintLockMode:false};
+// --- 変更点: stitchMode と stitchTargetId を追加 ---
+var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon:{active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best:{unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, editingTeacherId:null, editingSubjectId:null, editingTeacherLimitId:null, specialBuilder:{type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, openSpecialEdits:{}, subjectsUndoStack:[], rulesUndoStack:[], birdEyeMode:false, spotlightSub:'', spotlightTea:'', spotlightTeas:['','','',''], movingLesson:null, violations:{}, conflictingIds:[], activeViolationNode:null, scheduleHistory:[], historyIndex:-1, openTeacherLoadId:null, paintLockMode:false, stitchMode:false, stitchTargetId:null};
 let slotsData = Array(10).fill(null);
 let exportAbortController = null;
 let isPainting = false;
@@ -26,6 +27,7 @@ let celebrationTimeoutIds = [];
 let genTimerInt=null, sStart=null;
 
 function safeFind(arr,k,v){return (arr||[]).find(x=>x[k]===v);}
+
 function forceInitState(){
     if(!state.periods) state.periods={}; GRADES.forEach(g=>{if(!state.periods[g]) state.periods[g]={月:5,火:5,水:4,木:5,金:5};});
     if(!state.rooms?.length) state.rooms=[{id:'r1',name:'校庭',capacity:2,ngTimes:{}},{id:'r2',name:'体育館',capacity:2,ngTimes:{}},{id:'r3',name:'理科室',capacity:1,ngTimes:{}}];
@@ -38,6 +40,9 @@ function forceInitState(){
     state.birdEyeMode=false; state.spotlightSub=''; state.spotlightTea=''; if(!state.spotlightTeas) state.spotlightTeas=['','','','']; state.movingLesson=null; state.violations={}; state.conflictingIds=[];
     if(!state.scheduleHistory) state.scheduleHistory=[]; if(state.historyIndex===undefined) state.historyIndex=-1; if(state.openTeacherLoadId===undefined) state.openTeacherLoadId=null;
     if(state.paintLockMode===undefined) state.paintLockMode=false;
+    // --- 追加 ---
+    if(state.stitchMode===undefined) state.stitchMode=false;
+    if(state.stitchTargetId===undefined) state.stitchTargetId=null;
 }
 
 function load(){ 
