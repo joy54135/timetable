@@ -70,23 +70,26 @@ window.viewStep10 = ()=>{
         if(!state.dashFilter || (state.dashView==='class' && !classes.includes(state.dashFilter))) state.dashFilter=classes[0] || '';
     }
 
+    // --- 変更点: 修復ツールバー（結合・分割・一括）を追加 ---
     const lockToolsHtml = `<div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border dark:border-slate-700 mt-1 sm:mt-0">
+        <button onclick="actions.autoStitchAll()" class="px-2 py-1 rounded text-[10px] font-black bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 shadow-sm" title="分断された連続授業を自動で探して修復します">✨一括修復</button>
+        <button onclick="actions.toggleStitchMode()" class="px-2 py-1 rounded text-[10px] font-black transition-colors ${state.stitchMode?'bg-fuchsia-600 text-white shadow-sm animate-pulse':'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border dark:border-slate-700'}" title="バラバラになった駒を手動でニコイチに繋げ直します">🧶手動結合</button>
+        <button onclick="actions.toggleSplitMode()" class="px-2 py-1 rounded text-[10px] font-black transition-colors ${state.splitMode?'bg-rose-600 text-white shadow-sm animate-pulse':'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border dark:border-slate-700'}" title="連続授業を1コマずつに分割します">✂️分割</button>
         <button onclick="actions.togglePaintLockMode()" class="px-2 py-1 rounded text-[10px] font-black transition-colors ${state.paintLockMode?'bg-blue-600 text-white shadow-sm':'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border dark:border-slate-700'}" title="なぞって固定/解除">🖌️なぞり固定</button>
         <button onclick="actions.lockHomeroom()" class="px-2 py-1 rounded text-[10px] font-black bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm" title="担任の授業を固定">担任固定</button>
         <button onclick="actions.lockAll(true)" class="px-2 py-1 rounded text-[10px] font-black bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm" title="全て固定">全固定</button>
         <button onclick="actions.lockAll(false)" class="px-2 py-1 rounded text-[10px] font-black bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm" title="全て解除">全解除</button>
     </div>`;
     
-    // UI/UX Update: トレイに駒がある場合の強調とアニメーション
     const hasUnassigned = state.unassigned && state.unassigned.length > 0;
     const trayHeaderStyle = hasUnassigned ? 'text-amber-600 dark:text-amber-400 animate-pulse' : 'text-slate-700 dark:text-slate-200';
     const trayContainerStyle = hasUnassigned && !state.movingLesson ? 'ring-2 ring-amber-400 dark:ring-amber-500 shadow-md bg-amber-50 dark:bg-amber-900/20' : 'bg-slate-300 dark:bg-slate-800';
 
     const trayHtml = `<div class="h-[80px] bg-slate-200 dark:bg-slate-900/80 border-t border-slate-300 dark:border-slate-700 flex shrink-0 p-1 gap-1">
-        <div class="flex-1 flex flex-col rounded transition-colors overflow-hidden ${trayContainerStyle} ${state.movingLesson && !state.paintLockMode ? 'hover:bg-slate-400 dark:hover:bg-slate-700 cursor-pointer' : ''}" onclick="if(state.movingLesson && !state.paintLockMode) actions.handleCellClick('tray', null, null)">
+        <div class="flex-1 flex flex-col rounded transition-colors overflow-hidden ${trayContainerStyle} ${state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode ? 'hover:bg-slate-400 dark:hover:bg-slate-700 cursor-pointer' : ''}" onclick="if(state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode) actions.handleCellClick('tray', null, null)">
             <div class="flex items-center justify-between px-2 py-0.5 bg-black/10 dark:bg-black/30 cursor-default" onclick="event.stopPropagation()">
                 <span class="text-[10px] font-black ${trayHeaderStyle}">📥 未配置トレイ (${state.unassigned.length}件)</span>
-                <button onclick="actions.handleCellClick('tray', null, null)" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[9px] font-bold shadow-sm ${state.movingLesson && !state.paintLockMode ? 'animate-pulse ring-2 ring-rose-500 bg-rose-600 hover:bg-rose-700' : ''} transition-all">ここへ戻す</button>
+                <button onclick="actions.handleCellClick('tray', null, null)" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[9px] font-bold shadow-sm ${state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode ? 'animate-pulse ring-2 ring-rose-500 bg-rose-600 hover:bg-rose-700' : ''} transition-all">ここへ戻す</button>
             </div>
             <div id="step10-tray-scroll" class="flex-1 overflow-x-auto custom-scrollbar p-1 flex gap-1 items-center">
                 ${state.unassigned.length===0?'<span class="text-[9px] text-slate-400 font-bold px-2 cursor-default" onclick="event.stopPropagation()">空です</span>':state.unassigned.map(l => {
@@ -94,8 +97,16 @@ window.viewStep10 = ()=>{
                     const isFixed = l.isFixed || false;
                     const lockIcon = isLocked ? `<div class="pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white">📌</div>` : (isFixed ? `<div class="pin-icon absolute -top-1 -right-1 bg-indigo-600 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white">⚙️</div>` : '');
                     const lockStyleCls = (isLocked || isFixed) ? 'opacity-80 saturate-50 brightness-90' : '';
+                    
+                    // --- 変更点: 各モードに応じたリング強調 ---
+                    let ringCls = '';
+                    if(state.stitchMode && state.stitchTargetId === l.id) ringCls='ring-4 ring-fuchsia-500 scale-95 z-20 shadow-lg';
+                    else if(state.splitMode && (l.length||1)>1) ringCls='ring-2 ring-rose-400 border-dashed hover:border-solid transition-all';
+                    else if(state.movingLesson?.id===l.id) ringCls='ring-2 ring-rose-500 scale-95 opacity-80';
+                    else if(state.violations&&state.violations[l.id]) ringCls='ring-2 ring-rose-500 shadow-rose-500 shadow-lg';
+
                     return `
-                    <div onclick="event.stopPropagation(); actions.handleCellClick('tray', null, null, '${l.id}')" ondblclick="event.stopPropagation(); actions.toggleLock('${l.id}')" class="lesson-cell w-16 h-12 shrink-0 rounded-[4px] border cursor-pointer flex flex-col items-center justify-center relative overflow-hidden ${state.movingLesson?.id===l.id?'ring-2 ring-rose-500 scale-95 opacity-80':''} ${state.violations&&state.violations[l.id]?'ring-2 ring-rose-500 shadow-rose-500 shadow-lg':''} ${getSubjectColorClass(l.subject)} ${lockStyleCls} transition-all dark:border-opacity-50" data-lesson-id="${l.id}" ${getSubjectStyle(l.subject)?`style="${getSubjectStyle(l.subject)}"`:''}>
+                    <div onclick="event.stopPropagation(); actions.handleCellClick('tray', null, null, '${l.id}')" ondblclick="event.stopPropagation(); actions.toggleLock('${l.id}')" class="lesson-cell w-16 h-12 shrink-0 rounded-[4px] border cursor-pointer flex flex-col items-center justify-center relative overflow-hidden ${ringCls} ${getSubjectColorClass(l.subject)} ${lockStyleCls} transition-all dark:border-opacity-50" data-lesson-id="${l.id}" ${getSubjectStyle(l.subject)?`style="${getSubjectStyle(l.subject)}"`:''}>
                         <div class="absolute inset-0 bg-slate-900/60 opacity-0 dark:opacity-100 pointer-events-none z-0"></div>
                         <div class="relative z-10 flex flex-col items-center w-full">
                             ${lockIcon}
@@ -126,7 +137,9 @@ window.viewStep10 = ()=>{
                         ${[0,1,2,3].map(idx => `<select onchange="actions.setSpotlight('tea', this.value, ${idx})" class="text-[10px] text-black dark:text-white dark:bg-slate-800 p-1 rounded outline-none font-bold w-16"><option value="">教員${idx+1}</option>${teachers.map(t => `<option value="${t.id}" ${state.spotlightTeas[idx]===t.id?'selected':''}>${t.name}</option>`).join('')}</select>`).join('')}
                         <button onclick="actions.clearSpotlight()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-[9px] font-black transition-colors">✕ クリア</button>
                     </div>
-                    ${state.movingLesson && !state.paintLockMode ? `<span class="text-[10px] font-black bg-rose-600 px-2 py-0.5 rounded-full animate-pulse">👉 対象(${state.movingLesson.targets.join(',')})の先をタップ</span>` : ''}
+                    ${state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode ? `<span class="text-[10px] font-black bg-rose-600 px-2 py-0.5 rounded-full animate-pulse">👉 対象(${state.movingLesson.targets.join(',')})の先をタップ</span>` : ''}
+                    ${state.stitchMode ? `<span class="text-[10px] font-black bg-fuchsia-600 px-2 py-0.5 rounded-full animate-pulse shadow-md">🧶 結合対象を選んでください</span>` : ''}
+                    ${state.splitMode ? `<span class="text-[10px] font-black bg-rose-600 px-2 py-0.5 rounded-full animate-pulse shadow-md">✂️ 分割対象を選んでください</span>` : ''}
                 </div>
                 <div class="flex gap-2 items-center">
                     ${lockToolsHtml}
@@ -154,12 +167,12 @@ window.viewStep10 = ()=>{
                                 const isBanned = isBannedArea(d, p, cls, 'class');
                                 const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-100 dark:hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700');
                                 let hintCls = '';
-                                if (state.movingLesson && !state.paintLockMode && !isBanned && state.movingLesson.targets.includes(cls)) {
+                                if (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && !isBanned && state.movingLesson.targets.includes(cls)) {
                                     hintCls = getHintClass(d, p, cls);
                                 }
 
                                 if (ls.length === 0) {
-                                    const isSelCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.targets.includes(cls) && state.movingLesson.day===d && state.movingLesson.period===p) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
+                                    const isSelCls = (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.targets.includes(cls) && state.movingLesson.day===d && state.movingLesson.period===p) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                                     return `<td class="border ${borderCls} ${bgCls} p-0 relative transition-colors ${bannedCls} ${hintCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${cls}')"`:''}><div class="${isSelCls}"></div></td>`;
                                 }
                                 
@@ -169,7 +182,7 @@ window.viewStep10 = ()=>{
                                 const isTeaMatch = activeTeas.length === 0 || activeTeas.every(tid => l.teacherIds?.includes(tid));
                                 const isSpot = isSubMatch && isTeaMatch;
                                 
-                                const isSel = (state.movingLesson && !state.paintLockMode && state.movingLesson.id === l.id);
+                                const isSel = (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.id === l.id);
                                 const isVio = state.violations && state.violations[l.id];
                                 const isConf = state.conflictingIds && state.conflictingIds.includes(l.id);
                                 
@@ -179,8 +192,11 @@ window.viewStep10 = ()=>{
                                 const lockStyleCls = (isLocked || isFixed) ? 'opacity-80 saturate-50 brightness-90' : '';
                                 const dimCls = (!state.spotlightSub && activeTeas.length === 0 || isSpot) ? lockStyleCls : 'opacity-20 grayscale';
                                 
+                                // --- 変更点: 各モード時のセル描画 ---
                                 let ringCls = '';
-                                if(isSel) ringCls = 'ring-2 ring-rose-500 scale-90 opacity-80 z-20 shadow-lg';
+                                if(state.stitchMode && state.stitchTargetId === l.id) ringCls='ring-4 ring-fuchsia-500 scale-95 opacity-100 z-30 shadow-fuchsia-500 shadow-lg animate-pulse';
+                                else if(state.splitMode && (l.length||1)>1) ringCls='ring-2 ring-rose-400 border-dashed hover:border-solid hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all cursor-crosshair';
+                                else if(isSel) ringCls = 'ring-2 ring-rose-500 scale-90 opacity-80 z-20 shadow-lg';
                                 else if(isVio) ringCls = 'ring-[1.5px] ring-rose-500 z-10 shadow-rose-500 shadow-md animate-pulse';
                                 else if(isConf) ringCls = 'ring-[1px] ring-amber-500 z-10 bg-amber-50';
 
@@ -224,6 +240,11 @@ window.viewStep10 = ()=>{
                 <span class="text-xs font-black text-slate-800 dark:text-white">${Number(m.currentGen)}回目</span>
             </div>
             ${hasUnassigned ? `<div class="bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 px-2 py-0.5 rounded text-[10px] font-black animate-pulse border border-amber-300 dark:border-amber-700 shadow-sm ml-1">未配置 ${state.unassigned.length} 駒</div>` : ''}
+            
+            <!-- --- 変更点: ナビゲーションバッジの追加 --- -->
+            ${state.stitchMode ? `<div class="bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/50 dark:text-fuchsia-300 px-2 py-0.5 rounded text-[10px] font-black animate-pulse border border-fuchsia-300 dark:border-fuchsia-700 shadow-sm ml-1">結合: ${state.stitchTargetId ? '2つ目の駒を選んでください' : '1つ目の駒を選んでください'}</div>` : ''}
+            ${state.splitMode ? `<div class="bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300 px-2 py-0.5 rounded text-[10px] font-black animate-pulse border border-rose-300 dark:border-rose-700 shadow-sm ml-1">✂️ 分割する連続授業を選んでください</div>` : ''}
+            
             <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-0.5"></div>
             <div class="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border dark:border-slate-700">
                 <button onclick="actions.setDashTab('matrix')" class="px-3 py-1 rounded font-black text-[10px] transition-all ${state.dashTab==='matrix'?'bg-white shadow-sm text-blue-600 dark:text-blue-400 dark:bg-slate-900':'text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}">全体</button>
@@ -257,7 +278,7 @@ window.viewStep10 = ()=>{
                 const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-50 dark:hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700');
                 
                 let hintCls = '';
-                if (state.movingLesson && !state.paintLockMode && !isBanned) {
+                if (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && !isBanned) {
                     let isTargetRow = false;
                     if (state.matrixAxis === 'class' && state.movingLesson.targets.includes(rowId)) isTargetRow = true;
                     if (state.matrixAxis === 'teacher' && state.movingLesson.teacherIds.includes(rowId)) isTargetRow = true;
@@ -269,14 +290,20 @@ window.viewStep10 = ()=>{
                 const lessons=(state.generatedSchedule?.[d]?.[p]||[]).filter(l=>state.matrixAxis==='class'?l.targets?.includes(rowId):state.matrixAxis==='teacher'?l.teacherIds?.includes(rowId):l.room===rowId);
                 
                 if(lessons.length===0){ 
-                    const isSelCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.matrixAxis==='class'&&state.movingLesson.targets.includes(rowId)) || (state.matrixAxis==='teacher'&&state.movingLesson.teacherIds.includes(rowId)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
+                    const isSelCls = (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.matrixAxis==='class'&&state.movingLesson.targets.includes(rowId)) || (state.matrixAxis==='teacher'&&state.movingLesson.teacherIds.includes(rowId)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                     tr+=`<td class="p-0 ${borderCls} ${bgCls} ${bannedCls} ${hintCls} relative align-top h-full transition-colors" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.matrixAxis==='class'?rowId:state.dashFilter}')"`:''}><div class="${isSelCls}"></div></td>`;
                 } else { 
                     const l=lessons[0]; const subT=state.matrixAxis==='class'?`${l.teacherName||'?'}`:`${l.targets?.join(',')}`;
                     const cStyle = getSubjectStyle(l.subject); const cClass = cStyle ? '' : getSubjectColorClass(l.subject);
-                    const isSel = (state.movingLesson && !state.paintLockMode && state.movingLesson.id === l.id);
+                    const isSel = (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.id === l.id);
                     const isVio = state.violations && state.violations[l.id];
-                    let ringCls = ''; if(isSel) ringCls='ring-2 ring-rose-500 scale-90 opacity-80 z-20 shadow-lg'; else if(isVio) ringCls='ring-[1px] ring-rose-500 animate-pulse';
+                    
+                    // --- 変更点: リング強調の分岐 ---
+                    let ringCls = ''; 
+                    if(state.stitchMode && state.stitchTargetId === l.id) ringCls='ring-4 ring-fuchsia-500 scale-95 opacity-100 z-30 shadow-fuchsia-500 shadow-lg animate-pulse';
+                    else if(state.splitMode && (l.length||1)>1) ringCls='ring-2 ring-rose-400 border-dashed hover:border-solid hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all cursor-crosshair';
+                    else if(isSel) ringCls='ring-2 ring-rose-500 scale-90 opacity-80 z-20 shadow-lg'; 
+                    else if(isVio) ringCls='ring-[2px] ring-rose-500 animate-pulse shadow-rose-500 shadow-md';
                     
                     const isLocked = l.isLocked || false;
                     const isFixed = l.isFixed || false;
@@ -309,20 +336,26 @@ window.viewStep10 = ()=>{
                 const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-50 dark:hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800');
                 
                 let hintCls = '';
-                if (state.movingLesson && !state.paintLockMode && !isBanned) {
+                if (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && !isBanned) {
                     let targetCls = state.dashView === 'class' ? state.dashFilter : (state.movingLesson.targets[0] || '');
                     if (state.movingLesson.targets.includes(targetCls) || (state.dashView === 'teacher' && state.movingLesson.teacherIds.includes(state.dashFilter))) {
                         hintCls = getHintClass(d, p, targetCls);
                     }
                 }
 
-                const selCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.dashView==='class'&&state.movingLesson.targets.includes(state.dashFilter)) || (state.dashView==='teacher'&&state.movingLesson.teacherIds.includes(state.dashFilter)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
+                const selCls = (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.dashView==='class'&&state.movingLesson.targets.includes(state.dashFilter)) || (state.dashView==='teacher'&&state.movingLesson.teacherIds.includes(state.dashFilter)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                 
                 html+=`<div class="dash-cell border-b border-r dark:border-slate-700 bg-white dark:bg-slate-900 relative transition-colors ${bannedCls} ${hintCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.dashFilter}','${ls.length>0?ls[0].id:''}')"`:''}><div class="${selCls}"></div>${ls.map(l=>{
                     const cStyle = getSubjectStyle(l.subject); const cClass = cStyle ? '' : getSubjectColorClass(l.subject);
-                    const isSel = state.movingLesson && !state.paintLockMode && state.movingLesson.id === l.id;
+                    const isSel = state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.id === l.id;
                     const isVio = state.violations && state.violations[l.id];
-                    let ringCls = ''; if(isSel) ringCls='ring-2 ring-rose-500 scale-90 opacity-80 z-20 shadow-lg'; else if(isVio) ringCls='ring-[2px] ring-rose-500 animate-pulse shadow-rose-500 shadow-md';
+                    
+                    // --- 変更点: リング強調の分岐 ---
+                    let ringCls = '';
+                    if(state.stitchMode && state.stitchTargetId === l.id) ringCls='ring-4 ring-fuchsia-500 scale-95 opacity-100 z-30 shadow-fuchsia-500 shadow-lg animate-pulse';
+                    else if(state.splitMode && (l.length||1)>1) ringCls='ring-2 ring-rose-400 border-dashed hover:border-solid hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all cursor-crosshair';
+                    else if(isSel) ringCls='ring-2 ring-rose-500 scale-90 opacity-80 z-20 shadow-lg'; 
+                    else if(isVio) ringCls='ring-[2px] ring-rose-500 animate-pulse shadow-rose-500 shadow-md';
                     
                     const isLocked = l.isLocked || false;
                     const isFixed = l.isFixed || false;
