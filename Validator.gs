@@ -4,10 +4,12 @@
  * ==========================================
  */
 
+// 厳密ルールのチェック（配置不可ならfalseを返す）
 function checkStrictRules(lesson, day, period, schedule, state, rules, pLevels, PERIODS) {
     if (!rules) return { valid: true };
     const isStrict = (key) => pLevels[key] === 'high';
 
+    // 1. 同日重複禁止 (Strict)
     if (isStrict('limitOneSubjectPerDayStrict') && rules.limitOneSubjectPerDayStrict) {
         if (!lesson.isSpecialist) { 
             let count = 0;
@@ -25,6 +27,7 @@ function checkStrictRules(lesson, day, period, schedule, state, rules, pLevels, 
         }
     }
 
+    // 2. 排他ペア回避 (Strict)
     if (isStrict('exclusivePairs') && rules.exclusivePairs?.length > 0) {
         for (let r of rules.exclusivePairs) {
             let s1 = r.subject1, s2 = r.subject2;
@@ -40,6 +43,7 @@ function checkStrictRules(lesson, day, period, schedule, state, rules, pLevels, 
         }
     }
 
+    // 3. 連続授業の特定枠限定 (Strict)
     if (isStrict('limitContinuousToSpecificPeriods') && rules.limitContinuousToSpecificPeriods) {
         if ((lesson.length || 1) >= 2) {
             if (period > 3) return { valid: false, reason: '連続授業の午後配置' };
@@ -49,12 +53,14 @@ function checkStrictRules(lesson, day, period, schedule, state, rules, pLevels, 
     return { valid: true };
 }
 
+// 努力ルールのペナルティ計算
 function calcRulePenalty(lesson, day, period, schedule, state, rules, pLevels, PERIODS) {
     if (!rules) return 0;
     let penalty = 0;
     const isEffort = (key) => pLevels[key] === 'low';
     const isStrict = (key) => pLevels[key] === 'high';
 
+    // 同日重複 (Effort)
     if (isEffort('limitOneSubjectPerDayStrict') && rules.limitOneSubjectPerDayStrict && !lesson.isSpecialist) {
         let count = 0;
         PERIODS.forEach(p => {
@@ -65,6 +71,7 @@ function calcRulePenalty(lesson, day, period, schedule, state, rules, pLevels, P
         if (count > 0) penalty += 500;
     }
 
+    // 排他ペア (Effort)
     if (isEffort('exclusivePairs') && rules.exclusivePairs?.length > 0) {
         for (let r of rules.exclusivePairs) {
             let s1 = r.subject1, s2 = r.subject2;
@@ -78,10 +85,12 @@ function calcRulePenalty(lesson, day, period, schedule, state, rules, pLevels, P
         }
     }
 
+    // 連続授業限定 (Effort)
     if (isEffort('limitContinuousToSpecificPeriods') && rules.limitContinuousToSpecificPeriods && (lesson.length || 1) >= 2) {
         if (period > 3) penalty += 200;
     }
 
+    // 特定時間帯回避
     if (rules.avoidSpecificTimes?.length > 0) {
         for (let r of rules.avoidSpecificTimes) {
             if (matchRuleTarget(r, lesson) && matchRuleSubject(r, lesson)) {
@@ -92,12 +101,14 @@ function calcRulePenalty(lesson, day, period, schedule, state, rules, pLevels, P
         }
     }
 
+    // 午前優先
     if (rules.amPrioritySubjects?.length > 0) {
         if (rules.amPrioritySubjects.some(r => matchRuleTarget(r, lesson) && matchRuleSubject(r, lesson))) {
             if (period > 4) penalty += isStrict('amPrioritySubjects') ? 5000 : 200;
         }
     }
 
+    // 最終コマ優先
     if (rules.lastPeriodSubjects?.length > 0) {
         if (rules.lastPeriodSubjects.some(r => matchRuleTarget(r, lesson) && matchRuleSubject(r, lesson))) {
             const maxP = state.periods[lesson.targets[0].split('-')[0]]?.[day] || 6;
@@ -108,6 +119,7 @@ function calcRulePenalty(lesson, day, period, schedule, state, rules, pLevels, P
     return penalty;
 }
 
+// レポート生成（ScoreCard）
 function evaluateSchedule(schedule, state, rules, pLevels, unassigned, teacherObj, DAYS, PERIODS) {
     let totalLessons = 0;
     let placedLessons = 0;
@@ -132,6 +144,7 @@ function evaluateSchedule(schedule, state, rules, pLevels, unassigned, teacherOb
     };
 }
 
+// ユーティリティ
 function matchRuleTarget(rule, lesson) {
     if (!rule.grade && !rule.exclude) return true;
     let isTarget = false;

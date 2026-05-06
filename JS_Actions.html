@@ -69,10 +69,8 @@ window.actions = {
 
         const expected = actions.buildExpectedLessons();
         const expectedMap = new Map();
-        // 参照を切るためにディープコピーして格納
         expected.forEach(l => expectedMap.set(l.id, JSON.parse(JSON.stringify(l))));
 
-        // 1. ダッシュボードで手動削除された駒の事前消費
         if(state.manualDeletedConfigs) {
             state.manualDeletedConfigs.forEach(del => {
                 let remaining = del.length;
@@ -92,7 +90,6 @@ window.actions = {
         const syncedInstances = new Map(); 
         const idMigrationMap = new Map();  
 
-        // 長さ（length）の差分を消費するヘルパー関数
         const consumeExtraLength = (l, diff) => {
             let remainingDiff = diff;
             for (const [eId, e] of expectedMap.entries()) {
@@ -120,7 +117,6 @@ window.actions = {
                 expectedMap.delete(l.id);
                 if (isUpdated) updatedCount++;
 
-                // 手動結合により長さが増えている場合、その分を消費してトレイ増殖を防ぐ
                 if (oldLength > exp.length) {
                     consumeExtraLength(l, oldLength - exp.length);
                 }
@@ -130,7 +126,6 @@ window.actions = {
         };
 
         const fallbackMatch = (l) => {
-           // 手動追加された未知の駒は強制維持
            if (l.id && String(l.id).startsWith('manual_')) {
                syncedInstances.set(l.id, l);
                idMigrationMap.set(l.id, l.id);
@@ -150,6 +145,9 @@ window.actions = {
                Object.assign(l, exp, { isLocked: l.isLocked || false, isFixed: exp.isFixed || l.isFixed || false, length: oldLength });
                
                idMigrationMap.set(l.id, exp.id); 
+               // --- 重要修正: ニコイチの2コマ目がすでに書き換わったIDで来た時のためのキャッシュ ---
+               idMigrationMap.set(exp.id, exp.id); 
+               
                l.id = exp.id; 
                syncedInstances.set(exp.id, l);
                expectedMap.delete(exp.id);
@@ -197,7 +195,6 @@ window.actions = {
             state.unassigned = [];
         }
 
-        // 残った expected をトレイに追加（ただし、length が0になっていれば除外）
         expectedMap.forEach(exp => {
             if (exp.length > 0) {
                 state.unassigned.push(exp);
@@ -244,6 +241,32 @@ window.actions = {
         showToast("🗑️ 駒を削除しました", "success");
     },
     
+    copyLesson: () => {
+        if (!state.movingLesson) return;
+        const targetId = state.movingLesson.id;
+        const target = findLessonById(targetId);
+        if (!target) return;
+        
+        let newLesson = JSON.parse(JSON.stringify(target));
+        newLesson.id = `manual_copy_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        newLesson.isFixed = false;
+        newLesson.isLocked = false;
+        newLesson.fixedTime = null;
+        
+        state.unassigned.push(newLesson);
+        state.movingLesson = null;
+        actions.pushScheduleHistory();
+        validateSchedule();
+        render();
+        showToast("📄 駒をコピーしてトレイに追加しました", "success");
+    },
+    
+    deleteSelectedLesson: () => {
+        if (!state.movingLesson) return;
+        const targetId = state.movingLesson.id;
+        actions.deleteLessonFromDashboard(targetId);
+    },
+
     addLessonToDashboard: (cls, subId, teacherId, room, length) => {
         if (!cls || !subId) {
             showToast("クラスと教科は必須です", "warning");
@@ -1205,14 +1228,12 @@ function setupPaintListeners() {
   });
 }
 
-// 違反ポップアップ内で「削除ボタン」を表示できるように修正
 window.showViolationPopup = function(lessonId) {
     const l = findLessonById(lessonId);
     if(!l) return;
     const msgs = (state.violations && state.violations[lessonId]) ? state.violations[lessonId] : ["この駒のプロパティを確認します"];
     const el = document.getElementById('violation-popup');
     
-    // 削除ボタンの追加
     const deleteBtn = `<button onclick="actions.deleteLessonFromDashboard('${lessonId}')" class="mt-2 w-full py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-black transition-colors shadow-sm border border-rose-700 flex items-center justify-center gap-1">🗑️ この駒を完全に削除する</button>`;
 
     el.innerHTML = `<div class="font-black text-rose-500 text-xs mb-1 flex items-center gap-1">⚠️ 駒のステータス</div><ul class="text-[10px] font-bold list-disc pl-4 space-y-1 leading-snug">${msgs.map(m=>`<li>${m}</li>`).join('')}</ul>${deleteBtn}`;
