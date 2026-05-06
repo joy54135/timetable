@@ -72,28 +72,42 @@ function generateSchedule(state, currentSchedule, currentUnassigned) {
           const ovr = data.overrides?.[sub.id] || {}, rName = ovr.room || sub.defaultRoom || '通常教室';
           const isCont = rules.continuousClasses?.some(rc => rc.subject === sub.name && matchRuleTarget(rc, { targets: [cls] }));
           let fTimes = (ovr.fixedTimes || []).slice();
+          
+          // --- 変更点: aIdxに依存しない連番IDを適用（フロント・IOと共通化） ---
+          let lessonCounter = 0;
 
-          const proc = (tId, h, aIdx) => {
+          const proc = (tId, h) => {
             if(!tId) return; 
             const isSp = (roomObj[rName] || tId !== data.homeroom);
             let localH = h;
+            
             // 固定枠
             while(localH > 0 && fTimes.length > 0) {
               let fTime = fTimes.shift();
-              lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_f${localH}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: true, fixedTime: fTime });
-              localH--;
+              lessons.push({ id:`n_${cls}_${sub.id}_f${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: true, fixedTime: fTime });
+              localH--; lessonCounter++;
             }
+            
             // 連続授業（ニコイチ）
             if (isCont && localH >= 2) {
-              for(let i=0; i<Math.floor(localH/2); i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_p${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
-              if(localH%2 !== 0) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_s0`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+              for(let i=0; i<Math.floor(localH/2); i++) {
+                lessons.push({ id:`n_${cls}_${sub.id}_p${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                lessonCounter++;
+              }
+              if(localH%2 !== 0) {
+                lessons.push({ id:`n_${cls}_${sub.id}_s${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                lessonCounter++;
+              }
             } else {
               // 単独授業
-              for(let i=0; i<localH; i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+              for(let i=0; i<localH; i++) {
+                lessons.push({ id:`n_${cls}_${sub.id}_${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                lessonCounter++;
+              }
             }
           };
-          if (ovr.allocations?.length > 0) ovr.allocations.forEach((a,i) => proc(a.teacherId, parseInt(a.hours)||0, i)); 
-          else proc(ovr.teacherId||data.homeroom, remainingHrs, 0);
+          if (ovr.allocations?.length > 0) ovr.allocations.forEach((a) => proc(a.teacherId, parseInt(a.hours)||0)); 
+          else proc(ovr.teacherId||data.homeroom, remainingHrs);
         });
       });
     }
