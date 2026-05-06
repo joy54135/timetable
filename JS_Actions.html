@@ -64,7 +64,6 @@ window.actions = {
         return lessons;
     },
 
-    // --- 修正: トレイ増殖バグ防止と手動編集の保護機能を組み込んだ同期 ---
     syncScheduleData: () => {
         if (!state.generatedSchedule && (!state.unassigned || state.unassigned.length === 0)) return false;
 
@@ -214,7 +213,6 @@ window.actions = {
         return { updatedCount, addedCount, removedCount };
     },
 
-    // --- 新規追加: ダッシュボードから直接駒を削除する ---
     deleteLessonFromDashboard: (lId) => {
         const target = findLessonById(lId);
         if (!target) return;
@@ -246,7 +244,6 @@ window.actions = {
         showToast("🗑️ 駒を削除しました", "success");
     },
     
-    // --- 新規追加: ダッシュボードから直接駒を追加する ---
     addLessonToDashboard: (cls, subId, teacherId, room, length) => {
         if (!cls || !subId) {
             showToast("クラスと教科は必須です", "warning");
